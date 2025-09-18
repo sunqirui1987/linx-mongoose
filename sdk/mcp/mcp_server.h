@@ -14,6 +14,7 @@ typedef struct mcp_server {
     size_t tool_count;
     char server_name[MCP_MAX_NAME_LENGTH];
     char server_version[64];
+    mcp_capability_callbacks_t capability_callbacks;
 } mcp_server_t;
 
 /* Message sending callback type */
@@ -44,6 +45,12 @@ void mcp_server_reply_error(int id, const char* message);
 void mcp_server_handle_initialize(mcp_server_t* server, int id, const cJSON* params);
 void mcp_server_handle_tools_list(mcp_server_t* server, int id, const cJSON* params);
 void mcp_server_handle_tools_call(mcp_server_t* server, int id, const cJSON* params);
+
+/* Capability parsing */
+void mcp_server_parse_capabilities(mcp_server_t* server, const cJSON* capabilities);
+
+/* Capability configuration */
+void mcp_server_set_capability_callbacks(mcp_server_t* server, const mcp_capability_callbacks_t* callbacks);
 
 /* Utility functions */
 char* mcp_server_get_tools_list_json(const mcp_server_t* server, const char* cursor, bool list_user_only_tools);

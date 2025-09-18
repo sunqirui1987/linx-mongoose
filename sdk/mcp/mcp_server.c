@@ -25,6 +25,9 @@ mcp_server_t* mcp_server_create(const char* server_name, const char* server_vers
     strncpy(server->server_version, server_version, sizeof(server->server_version) - 1);
     server->server_version[sizeof(server->server_version) - 1] = '\0';
     
+    /* 初始化能力回调结构体 */
+    memset(&server->capability_callbacks, 0, sizeof(server->capability_callbacks));
+    
     return server;
 }
 
@@ -198,12 +201,64 @@ void mcp_server_reply_error(int id, const char* message) {
     free(payload);
 }
 
+void mcp_server_set_capability_callbacks(mcp_server_t* server, const mcp_capability_callbacks_t* callbacks) {
+    if (!server || !callbacks) {
+        return;
+    }
+    
+    /* 复制能力回调配置 */
+    server->capability_callbacks = *callbacks;
+}
+
+void mcp_server_parse_capabilities(mcp_server_t* server, const cJSON* capabilities) {
+    if (!server || !capabilities) {
+        return;
+    }
+    
+    /* 解析视觉能力配置 */
+    const cJSON* vision = cJSON_GetObjectItem(capabilities, "vision");
+    if (cJSON_IsObject(vision)) {
+        const cJSON* url = cJSON_GetObjectItem(vision, "url");
+        const cJSON* token = cJSON_GetObjectItem(vision, "token");
+        
+        if (cJSON_IsString(url)) {
+            /* 如果设置了摄像头解释URL回调函数，则调用它 */
+            if (server->capability_callbacks.camera_set_explain_url) {
+                const char* token_str = (cJSON_IsString(token)) ? token->valuestring : NULL;
+                server->capability_callbacks.camera_set_explain_url(url->valuestring, token_str);
+                printf("MCP: 通过回调函数设置摄像头解释URL: %s\n", url->valuestring);
+                if (token_str) {
+                    printf("MCP: 通过回调函数设置摄像头解释Token: %s\n", token_str);
+                }
+            } else {
+                /* 如果没有设置回调函数，则打印日志提示 */
+                printf("MCP: 收到摄像头解释URL配置，但未设置回调函数: %s\n", url->valuestring);
+                if (cJSON_IsString(token)) {
+                    printf("MCP: 收到摄像头解释Token配置: %s\n", token->valuestring);
+                }
+            }
+        }
+    }
+    
+    /* 可以在这里添加其他能力的解析，例如：
+     * - 音频能力配置
+     * - 文件操作能力配置
+     * - 网络能力配置等
+     */
+}
+
 void mcp_server_handle_initialize(mcp_server_t* server, int id, const cJSON* params) {
     if (!server) {
         return;
     }
     
-    /* TODO: Parse capabilities if needed */
+    /* 解析客户端能力配置 */
+    if (cJSON_IsObject(params)) {
+        const cJSON* capabilities = cJSON_GetObjectItem(params, "capabilities");
+        if (cJSON_IsObject(capabilities)) {
+            mcp_server_parse_capabilities(server, capabilities);
+        }
+    }
     
     char result[512];
     snprintf(result, sizeof(result),

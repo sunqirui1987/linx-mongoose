@@ -1,1 +1,0 @@
-gcc -I. -Isdk/cjson -o test_protocol test_protocol.c sdk/protocols/linx_protocol.c sdk/cjson/cJSON.c && ./test_protocol

@@ -55,11 +55,22 @@ struct mcp_image_content;
 /* Tool callback function type */
 typedef mcp_return_value_t (*mcp_tool_callback_t)(const struct mcp_property_list* properties);
 
+/* 能力配置回调函数类型 */
+/* 摄像头解释URL设置回调 */
+typedef void (*mcp_camera_set_explain_url_callback_t)(const char* url, const char* token);
+
+/* 能力配置结构体 */
+typedef struct {
+    mcp_camera_set_explain_url_callback_t camera_set_explain_url;
+    /* 可以在这里添加其他硬件能力的回调函数指针 */
+} mcp_capability_callbacks_t;
+
 /* Constants */
 #define MCP_MAX_NAME_LENGTH 256
 #define MCP_MAX_DESCRIPTION_LENGTH 1024
 #define MCP_MAX_TOOLS 64
 #define MCP_MAX_PROPERTIES 32
+#define MCP_MAX_URL_LENGTH 512
 
 #ifdef __cplusplus
 }
