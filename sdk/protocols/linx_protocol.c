@@ -35,7 +35,6 @@ void linx_protocol_destroy(linx_protocol_t* protocol) {
     
     // 释放会话ID内存
     if (protocol->session_id) {
-        free(protocol->session_id);
         protocol->session_id = NULL;
     }
     
