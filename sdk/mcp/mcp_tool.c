@@ -1,23 +1,35 @@
+/*
+ * MCP工具管理实现文件
+ * 实现工具的创建、销毁、调用和返回值处理功能
+ */
+
 #include "mcp_tool.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 
+/**
+ * 创建工具
+ */
 mcp_tool_t* mcp_tool_create(const char* name, const char* description,
                            mcp_property_list_t* properties, mcp_tool_callback_t callback) {
+    // 检查参数有效性
     if (!name || !description || !callback) {
         return NULL;
     }
     
+    // 检查名称和描述长度
     if (strlen(name) >= MCP_MAX_NAME_LENGTH || strlen(description) >= MCP_MAX_DESCRIPTION_LENGTH) {
         return NULL;
     }
     
+    // 分配内存
     mcp_tool_t* tool = malloc(sizeof(mcp_tool_t));
     if (!tool) {
         return NULL;
     }
     
+    // 初始化工具
     strncpy(tool->name, name, MCP_MAX_NAME_LENGTH - 1);
     tool->name[MCP_MAX_NAME_LENGTH - 1] = '\0';
     
@@ -31,38 +43,52 @@ mcp_tool_t* mcp_tool_create(const char* name, const char* description,
     return tool;
 }
 
+/**
+ * 销毁工具并释放内存
+ */
 void mcp_tool_destroy(mcp_tool_t* tool) {
     if (tool) {
+        // 销毁属性列表
         if (tool->properties) {
             mcp_property_list_destroy(tool->properties);
         }
+        // 释放工具本身
         free(tool);
     }
 }
 
+/**
+ * 设置工具是否仅限用户使用
+ */
 void mcp_tool_set_user_only(mcp_tool_t* tool, bool user_only) {
     if (tool) {
         tool->user_only = user_only;
     }
 }
 
+/**
+ * 将工具转换为JSON字符串
+ */
 char* mcp_tool_to_json(const mcp_tool_t* tool) {
     if (!tool) {
         return NULL;
     }
     
+    // 创建JSON对象
     cJSON* json = cJSON_CreateObject();
     if (!json) {
         return NULL;
     }
     
+    // 添加基本信息
     cJSON_AddStringToObject(json, "name", tool->name);
     cJSON_AddStringToObject(json, "description", tool->description);
     
-    /* Create input schema */
+    /* 创建输入模式 */
     cJSON* input_schema = cJSON_CreateObject();
     cJSON_AddStringToObject(input_schema, "type", "object");
     
+    // 添加属性信息
     if (tool->properties) {
         char* properties_json_str = mcp_property_list_to_json(tool->properties);
         if (properties_json_str) {
@@ -73,6 +99,7 @@ char* mcp_tool_to_json(const mcp_tool_t* tool) {
             free(properties_json_str);
         }
         
+        // 添加必需属性
         char* required_json_str = mcp_property_list_get_required_json(tool->properties);
         if (required_json_str) {
             cJSON* required_json = cJSON_Parse(required_json_str);
@@ -87,7 +114,7 @@ char* mcp_tool_to_json(const mcp_tool_t* tool) {
     
     cJSON_AddItemToObject(json, "inputSchema", input_schema);
     
-    /* Add audience annotation if user only */
+    /* 如果仅限用户使用，添加注解 */
     if (tool->user_only) {
         cJSON* annotations = cJSON_CreateObject();
         cJSON* audience = cJSON_CreateArray();
@@ -96,162 +123,174 @@ char* mcp_tool_to_json(const mcp_tool_t* tool) {
         cJSON_AddItemToObject(json, "annotations", annotations);
     }
     
+    // 转换为字符串
     char* json_str = cJSON_PrintUnformatted(json);
     cJSON_Delete(json);
     
     return json_str;
 }
 
+/**
+ * 调用工具并获取结果
+ */
 char* mcp_tool_call(const mcp_tool_t* tool, const mcp_property_list_t* properties) {
     if (!tool || !tool->callback) {
         return NULL;
     }
     
-    /* Call the tool callback */
-    mcp_return_value_t return_value = tool->callback(properties);
+    // 调用工具回调函数
+    mcp_return_value_t result = tool->callback(properties);
     
-    /* Create result JSON */
-    cJSON* result = cJSON_CreateObject();
-    cJSON* content = cJSON_CreateArray();
-    
-    if (!result || !content) {
-        cJSON_Delete(result);
-        cJSON_Delete(content);
+    // 创建结果JSON对象
+    cJSON* json = cJSON_CreateObject();
+    if (!json) {
         return NULL;
     }
     
-    /* Handle different return types */
-    cJSON* content_item = cJSON_CreateObject();
-    if (!content_item) {
-        cJSON_Delete(result);
-        cJSON_Delete(content);
-        return NULL;
-    }
-    
-    /* Handle return type based on the type field */
-    switch (return_value.type) {
-        case MCP_RETURN_TYPE_IMAGE:
-            if (return_value.value.image_val != NULL) {
-                char* image_json = mcp_image_content_to_json(return_value.value.image_val);
-                if (image_json) {
-                    cJSON_AddStringToObject(content_item, "type", "image");
-                    cJSON_AddStringToObject(content_item, "image", image_json);
-                    free(image_json);
-                }
-                mcp_image_content_destroy(return_value.value.image_val);
-                return_value.value.image_val = NULL; /* Prevent double free */
+    // 根据返回值类型处理结果
+    switch (result.type) {
+        case MCP_RETURN_TYPE_BOOLEAN:
+            cJSON_AddBoolToObject(json, "result", result.value.bool_val);
+            break;
+            
+        case MCP_RETURN_TYPE_INTEGER:
+            cJSON_AddNumberToObject(json, "result", result.value.int_val);
+            break;
+            
+        case MCP_RETURN_TYPE_STRING:
+            if (result.value.string_val) {
+                cJSON_AddStringToObject(json, "result", result.value.string_val);
+            } else {
+                cJSON_AddNullToObject(json, "result");
             }
             break;
             
         case MCP_RETURN_TYPE_JSON:
-            if (return_value.value.json_val != NULL) {
-                char* json_str = cJSON_PrintUnformatted(return_value.value.json_val);
-                if (json_str) {
-                    cJSON_AddStringToObject(content_item, "type", "text");
-                    cJSON_AddStringToObject(content_item, "text", json_str);
-                    free(json_str);
-                }
-                cJSON_Delete(return_value.value.json_val);
-                return_value.value.json_val = NULL; /* Prevent double free */
+            if (result.value.json_val) {
+                cJSON_AddItemToObject(json, "result", cJSON_Duplicate(result.value.json_val, 1));
+            } else {
+                cJSON_AddNullToObject(json, "result");
             }
             break;
             
-        case MCP_RETURN_TYPE_STRING:
-            if (return_value.value.string_val != NULL) {
-                cJSON_AddStringToObject(content_item, "type", "text");
-                cJSON_AddStringToObject(content_item, "text", return_value.value.string_val);
-                mcp_free_string(return_value.value.string_val);
-                return_value.value.string_val = NULL; /* Prevent double free */
-            }
-            break;
-            
-        case MCP_RETURN_TYPE_BOOL:
-            cJSON_AddStringToObject(content_item, "type", "text");
-            cJSON_AddStringToObject(content_item, "text", return_value.value.bool_val ? "true" : "false");
-            break;
-            
-        case MCP_RETURN_TYPE_INT:
-            {
-                char buffer[32];
-                cJSON_AddStringToObject(content_item, "type", "text");
-                snprintf(buffer, sizeof(buffer), "%d", return_value.value.int_val);
-                cJSON_AddStringToObject(content_item, "text", buffer);
+        case MCP_RETURN_TYPE_IMAGE:
+            if (result.value.image_val) {
+                cJSON* image_json = cJSON_CreateObject();
+                cJSON_AddStringToObject(image_json, "type", "image");
+                cJSON_AddStringToObject(image_json, "data", result.value.image_val->data);
+                cJSON_AddStringToObject(image_json, "mimeType", result.value.image_val->mime_type);
+                cJSON_AddItemToObject(json, "result", image_json);
+            } else {
+                cJSON_AddNullToObject(json, "result");
             }
             break;
             
         default:
-            cJSON_AddStringToObject(content_item, "type", "text");
-            cJSON_AddStringToObject(content_item, "text", "Unknown return type");
+            cJSON_AddNullToObject(json, "result");
             break;
     }
     
-    cJSON_AddItemToArray(content, content_item);
-    cJSON_AddItemToObject(result, "content", content);
-    cJSON_AddBoolToObject(result, "isError", false);
+    // 转换为字符串
+    char* json_str = cJSON_PrintUnformatted(json);
+    cJSON_Delete(json);
     
-    char* result_str = cJSON_PrintUnformatted(result);
-    cJSON_Delete(result);
+    // 清理返回值
+    mcp_return_value_cleanup((mcp_return_value_t*)&result, result.type);
     
-    return result_str;
+    return json_str;
 }
 
+/**
+ * 创建布尔类型返回值
+ */
 mcp_return_value_t mcp_return_bool(bool value) {
-    mcp_return_value_t ret_val = {0};
-    ret_val.type = MCP_RETURN_TYPE_BOOL;
+    mcp_return_value_t ret_val;
+    ret_val.type = MCP_RETURN_TYPE_BOOLEAN;
     ret_val.value.bool_val = value;
     return ret_val;
 }
 
+/**
+ * 创建整数类型返回值
+ */
 mcp_return_value_t mcp_return_int(int value) {
-    mcp_return_value_t ret_val = {0};
-    ret_val.type = MCP_RETURN_TYPE_INT;
+    mcp_return_value_t ret_val;
+    ret_val.type = MCP_RETURN_TYPE_INTEGER;
     ret_val.value.int_val = value;
     return ret_val;
 }
 
+/**
+ * 创建字符串类型返回值
+ */
 mcp_return_value_t mcp_return_string(const char* value) {
-    mcp_return_value_t ret_val = {0};
+    mcp_return_value_t ret_val;
     ret_val.type = MCP_RETURN_TYPE_STRING;
     ret_val.value.string_val = value ? mcp_strdup(value) : NULL;
     return ret_val;
 }
 
+/**
+ * 创建JSON类型返回值
+ */
 mcp_return_value_t mcp_return_json(cJSON* value) {
-    mcp_return_value_t ret_val = {0};
+    mcp_return_value_t ret_val;
     ret_val.type = MCP_RETURN_TYPE_JSON;
     ret_val.value.json_val = value;
     return ret_val;
 }
 
+/**
+ * 创建图像类型返回值
+ */
 mcp_return_value_t mcp_return_image(mcp_image_content_t* value) {
-    mcp_return_value_t ret_val = {0};
+    mcp_return_value_t ret_val;
     ret_val.type = MCP_RETURN_TYPE_IMAGE;
     ret_val.value.image_val = value;
     return ret_val;
 }
 
+/**
+ * 清理返回值并释放内存
+ */
 void mcp_return_value_cleanup(mcp_return_value_t* ret_val, mcp_return_type_t type) {
     if (!ret_val) {
         return;
     }
     
+    // 根据类型清理相应的资源
     switch (type) {
         case MCP_RETURN_TYPE_STRING:
-            mcp_free_string(ret_val->value.string_val);
-            ret_val->value.string_val = NULL;
+            if (ret_val->value.string_val) {
+                free((void*)ret_val->value.string_val);
+                ret_val->value.string_val = NULL;
+            }
             break;
+            
         case MCP_RETURN_TYPE_JSON:
-            cJSON_Delete(ret_val->value.json_val);
-            ret_val->value.json_val = NULL;
+            if (ret_val->value.json_val) {
+                cJSON_Delete(ret_val->value.json_val);
+                ret_val->value.json_val = NULL;
+            }
             break;
+            
         case MCP_RETURN_TYPE_IMAGE:
-            mcp_image_content_destroy(ret_val->value.image_val);
-            ret_val->value.image_val = NULL;
+            if (ret_val->value.image_val) {
+                if (ret_val->value.image_val->data) {
+                    free(ret_val->value.image_val->data);
+                }
+                if (ret_val->value.image_val->mime_type) {
+                    free(ret_val->value.image_val->mime_type);
+                }
+                free(ret_val->value.image_val);
+                ret_val->value.image_val = NULL;
+            }
             break;
-        case MCP_RETURN_TYPE_BOOL:
-        case MCP_RETURN_TYPE_INT:
+            
+        case MCP_RETURN_TYPE_BOOLEAN:
+        case MCP_RETURN_TYPE_INTEGER:
         default:
-            /* No cleanup needed for primitive types */
+            // 这些类型不需要特殊清理
             break;
     }
 }

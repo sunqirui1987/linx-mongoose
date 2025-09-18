@@ -1,11 +1,20 @@
+/*
+ * MCP服务器实现文件
+ * 实现MCP服务器的核心功能，包括工具管理、消息处理和能力配置
+ */
+
 #include "mcp_server.h"
+#include "mcp.h"        // 包含MCP协议版本定义
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 
-/* Global send message callback */
+/* 全局消息发送回调函数 */
 static mcp_send_message_callback_t g_send_callback = NULL;
 
+/**
+ * 创建MCP服务器实例
+ */
 mcp_server_t* mcp_server_create(const char* server_name, const char* server_version) {
     if (!server_name || !server_version) {
         return NULL;
@@ -16,12 +25,15 @@ mcp_server_t* mcp_server_create(const char* server_name, const char* server_vers
         return NULL;
     }
     
+    // 初始化工具数组
     memset(server->tools, 0, sizeof(server->tools));
     server->tool_count = 0;
     
+    // 复制服务器名称
     strncpy(server->server_name, server_name, MCP_MAX_NAME_LENGTH - 1);
     server->server_name[MCP_MAX_NAME_LENGTH - 1] = '\0';
     
+    // 复制服务器版本
     strncpy(server->server_version, server_version, sizeof(server->server_version) - 1);
     server->server_version[sizeof(server->server_version) - 1] = '\0';
     
@@ -31,8 +43,12 @@ mcp_server_t* mcp_server_create(const char* server_name, const char* server_vers
     return server;
 }
 
+/**
+ * 销毁MCP服务器实例
+ */
 void mcp_server_destroy(mcp_server_t* server) {
     if (server) {
+        // 销毁所有工具
         for (size_t i = 0; i < server->tool_count; i++) {
             mcp_tool_destroy(server->tools[i]);
         }
@@ -40,12 +56,15 @@ void mcp_server_destroy(mcp_server_t* server) {
     }
 }
 
+/**
+ * 向服务器添加工具
+ */
 bool mcp_server_add_tool(mcp_server_t* server, mcp_tool_t* tool) {
     if (!server || !tool || server->tool_count >= MCP_MAX_TOOLS) {
         return false;
     }
     
-    /* Check for duplicate tool names */
+    /* 检查重复的工具名称 */
     for (size_t i = 0; i < server->tool_count; i++) {
         if (strcmp(server->tools[i]->name, tool->name) == 0) {
             return false;
@@ -57,6 +76,9 @@ bool mcp_server_add_tool(mcp_server_t* server, mcp_tool_t* tool) {
     return true;
 }
 
+/**
+ * 向服务器添加简单工具
+ */
 bool mcp_server_add_simple_tool(mcp_server_t* server, const char* name, const char* description,
                                 mcp_property_list_t* properties, mcp_tool_callback_t callback) {
     mcp_tool_t* tool = mcp_tool_create(name, description, properties, callback);
@@ -72,6 +94,9 @@ bool mcp_server_add_simple_tool(mcp_server_t* server, const char* name, const ch
     return true;
 }
 
+/**
+ * 向服务器添加仅用户可见的工具
+ */
 bool mcp_server_add_user_only_tool(mcp_server_t* server, const char* name, const char* description,
                                    mcp_property_list_t* properties, mcp_tool_callback_t callback) {
     mcp_tool_t* tool = mcp_tool_create(name, description, properties, callback);
@@ -79,6 +104,7 @@ bool mcp_server_add_user_only_tool(mcp_server_t* server, const char* name, const
         return false;
     }
     
+    // 设置为仅用户可见
     mcp_tool_set_user_only(tool, true);
     
     if (!mcp_server_add_tool(server, tool)) {
@@ -89,6 +115,9 @@ bool mcp_server_add_user_only_tool(mcp_server_t* server, const char* name, const
     return true;
 }
 
+/**
+ * 根据名称查找工具
+ */
 const mcp_tool_t* mcp_server_find_tool(const mcp_server_t* server, const char* name) {
     if (!server || !name) {
         return NULL;
@@ -103,10 +132,16 @@ const mcp_tool_t* mcp_server_find_tool(const mcp_server_t* server, const char* n
     return NULL;
 }
 
+/**
+ * 设置消息发送回调函数
+ */
 void mcp_server_set_send_callback(mcp_send_message_callback_t callback) {
     g_send_callback = callback;
 }
 
+/**
+ * 解析字符串消息
+ */
 void mcp_server_parse_message(mcp_server_t* server, const char* message) {
     if (!server || !message) {
         return;
@@ -121,35 +156,38 @@ void mcp_server_parse_message(mcp_server_t* server, const char* message) {
     cJSON_Delete(json);
 }
 
+/**
+ * 解析JSON消息
+ */
 void mcp_server_parse_json_message(mcp_server_t* server, const cJSON* json) {
     if (!server || !json) {
         return;
     }
     
-    /* Check JSONRPC version */
+    /* 检查JSONRPC版本 */
     const cJSON* version = cJSON_GetObjectItem(json, "jsonrpc");
     if (!version || !cJSON_IsString(version) || strcmp(version->valuestring, "2.0") != 0) {
         return;
     }
     
-    /* Check method */
+    /* 检查方法名 */
     const cJSON* method = cJSON_GetObjectItem(json, "method");
     if (!method || !cJSON_IsString(method)) {
         return;
     }
     
-    /* Skip notifications */
+    /* 跳过通知消息 */
     if (strstr(method->valuestring, "notifications") == method->valuestring) {
         return;
     }
     
-    /* Check params */
+    /* 检查参数 */
     const cJSON* params = cJSON_GetObjectItem(json, "params");
     if (params && !cJSON_IsObject(params)) {
         return;
     }
     
-    /* Check id */
+    /* 检查请求ID */
     const cJSON* id = cJSON_GetObjectItem(json, "id");
     if (!id || !cJSON_IsNumber(id)) {
         return;
@@ -158,6 +196,7 @@ void mcp_server_parse_json_message(mcp_server_t* server, const cJSON* json) {
     int id_int = id->valueint;
     const char* method_str = method->valuestring;
     
+    // 根据方法名分发处理
     if (strcmp(method_str, "initialize") == 0) {
         mcp_server_handle_initialize(server, id_int, params);
     } else if (strcmp(method_str, "tools/list") == 0) {
@@ -171,6 +210,9 @@ void mcp_server_parse_json_message(mcp_server_t* server, const cJSON* json) {
     }
 }
 
+/**
+ * 回复成功结果
+ */
 void mcp_server_reply_result(int id, const char* result) {
     if (!g_send_callback || !result) {
         return;
@@ -186,6 +228,9 @@ void mcp_server_reply_result(int id, const char* result) {
     free(payload);
 }
 
+/**
+ * 回复错误信息
+ */
 void mcp_server_reply_error(int id, const char* message) {
     if (!g_send_callback || !message) {
         return;
@@ -201,93 +246,95 @@ void mcp_server_reply_error(int id, const char* message) {
     free(payload);
 }
 
+/**
+ * 设置能力回调函数
+ */
 void mcp_server_set_capability_callbacks(mcp_server_t* server, const mcp_capability_callbacks_t* callbacks) {
-    if (!server || !callbacks) {
-        return;
+    if (server && callbacks) {
+        server->capability_callbacks = *callbacks;
     }
-    
-    /* 复制能力回调配置 */
-    server->capability_callbacks = *callbacks;
 }
 
+/**
+ * 解析能力配置
+ */
 void mcp_server_parse_capabilities(mcp_server_t* server, const cJSON* capabilities) {
     if (!server || !capabilities) {
         return;
     }
     
-    /* 解析视觉能力配置 */
-    const cJSON* vision = cJSON_GetObjectItem(capabilities, "vision");
-    if (cJSON_IsObject(vision)) {
-        const cJSON* url = cJSON_GetObjectItem(vision, "url");
-        const cJSON* token = cJSON_GetObjectItem(vision, "token");
+    // 解析摄像头能力配置
+    const cJSON* camera = cJSON_GetObjectItem(capabilities, "camera");
+    if (camera && cJSON_IsObject(camera)) {
+        const cJSON* explain_url = cJSON_GetObjectItem(camera, "explain_url");
+        const cJSON* token = cJSON_GetObjectItem(camera, "token");
         
-        if (cJSON_IsString(url)) {
-            /* 如果设置了摄像头解释URL回调函数，则调用它 */
-            if (server->capability_callbacks.camera_set_explain_url) {
-                const char* token_str = (cJSON_IsString(token)) ? token->valuestring : NULL;
-                server->capability_callbacks.camera_set_explain_url(url->valuestring, token_str);
-                printf("MCP: 通过回调函数设置摄像头解释URL: %s\n", url->valuestring);
-                if (token_str) {
-                    printf("MCP: 通过回调函数设置摄像头解释Token: %s\n", token_str);
-                }
-            } else {
-                /* 如果没有设置回调函数，则打印日志提示 */
-                printf("MCP: 收到摄像头解释URL配置，但未设置回调函数: %s\n", url->valuestring);
-                if (cJSON_IsString(token)) {
-                    printf("MCP: 收到摄像头解释Token配置: %s\n", token->valuestring);
-                }
-            }
+        if (explain_url && cJSON_IsString(explain_url) && 
+            token && cJSON_IsString(token) &&
+            server->capability_callbacks.camera_set_explain_url) {
+            // 调用摄像头解释URL设置回调
+            server->capability_callbacks.camera_set_explain_url(
+                explain_url->valuestring, 
+                token->valuestring
+            );
         }
     }
     
-    /* 可以在这里添加其他能力的解析，例如：
-     * - 音频能力配置
-     * - 文件操作能力配置
-     * - 网络能力配置等
-     */
+    // 可以在这里添加其他能力的解析逻辑
 }
 
+/**
+ * 处理初始化请求
+ */
 void mcp_server_handle_initialize(mcp_server_t* server, int id, const cJSON* params) {
     if (!server) {
+        mcp_server_reply_error(id, "Server not initialized");
         return;
     }
     
-    /* 解析客户端能力配置 */
-    if (cJSON_IsObject(params)) {
+    // 解析客户端能力配置
+    if (params) {
         const cJSON* capabilities = cJSON_GetObjectItem(params, "capabilities");
-        if (cJSON_IsObject(capabilities)) {
+        if (capabilities) {
             mcp_server_parse_capabilities(server, capabilities);
         }
     }
     
+    // 构建初始化响应
     char result[512];
-    snprintf(result, sizeof(result),
-        "{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{\"tools\":{}},\"serverInfo\":{\"name\":\"%s\",\"version\":\"%s\"}}",
-        server->server_name, server->server_version);
+    snprintf(result, sizeof(result), 
+        "{\"protocolVersion\":\"%s\",\"capabilities\":{\"tools\":{\"listChanged\":false}},\"serverInfo\":{\"name\":\"%s\",\"version\":\"%s\"}}",
+        MCP_PROTOCOL_VERSION, server->server_name, server->server_version);
     
     mcp_server_reply_result(id, result);
 }
 
+/**
+ * 处理工具列表请求
+ */
 void mcp_server_handle_tools_list(mcp_server_t* server, int id, const cJSON* params) {
     if (!server) {
+        mcp_server_reply_error(id, "Server not initialized");
         return;
     }
     
-    const char* cursor = "";
+    const char* cursor = NULL;
     bool list_user_only_tools = false;
     
+    // 解析参数
     if (params) {
         const cJSON* cursor_json = cJSON_GetObjectItem(params, "cursor");
         if (cursor_json && cJSON_IsString(cursor_json)) {
             cursor = cursor_json->valuestring;
         }
         
-        const cJSON* with_user_tools = cJSON_GetObjectItem(params, "withUserTools");
-        if (with_user_tools && cJSON_IsBool(with_user_tools)) {
-            list_user_only_tools = (with_user_tools->valueint == 1);
+        const cJSON* user_only = cJSON_GetObjectItem(params, "listUserOnlyTools");
+        if (user_only && cJSON_IsBool(user_only)) {
+            list_user_only_tools = cJSON_IsTrue(user_only);
         }
     }
     
+    // 获取工具列表JSON
     char* tools_json = mcp_server_get_tools_list_json(server, cursor, list_user_only_tools);
     if (tools_json) {
         mcp_server_reply_result(id, tools_json);
@@ -297,158 +344,188 @@ void mcp_server_handle_tools_list(mcp_server_t* server, int id, const cJSON* par
     }
 }
 
+/**
+ * 处理工具调用请求
+ */
 void mcp_server_handle_tools_call(mcp_server_t* server, int id, const cJSON* params) {
     if (!server || !params) {
-        mcp_server_reply_error(id, "Missing params");
+        mcp_server_reply_error(id, "Invalid parameters");
         return;
     }
     
-    const cJSON* tool_name = cJSON_GetObjectItem(params, "name");
-    if (!tool_name || !cJSON_IsString(tool_name)) {
-        mcp_server_reply_error(id, "Missing name");
+    // 获取工具名称
+    const cJSON* name_json = cJSON_GetObjectItem(params, "name");
+    if (!name_json || !cJSON_IsString(name_json)) {
+        mcp_server_reply_error(id, "Tool name is required");
         return;
     }
     
-    const cJSON* tool_arguments = cJSON_GetObjectItem(params, "arguments");
-    if (tool_arguments && !cJSON_IsObject(tool_arguments)) {
-        mcp_server_reply_error(id, "Invalid arguments");
-        return;
-    }
+    const char* tool_name = name_json->valuestring;
     
-    const mcp_tool_t* tool = mcp_server_find_tool(server, tool_name->valuestring);
+    // 查找工具
+    const mcp_tool_t* tool = mcp_server_find_tool(server, tool_name);
     if (!tool) {
         char error_msg[256];
-        snprintf(error_msg, sizeof(error_msg), "Unknown tool: %s", tool_name->valuestring);
+        snprintf(error_msg, sizeof(error_msg), "Tool not found: %s", tool_name);
         mcp_server_reply_error(id, error_msg);
         return;
     }
     
-    /* Parse arguments into property list */
-    mcp_property_list_t* arguments = mcp_property_list_create();
-    if (!arguments) {
-        mcp_server_reply_error(id, "Failed to create arguments list");
-        return;
-    }
+    // 解析工具参数
+    const cJSON* arguments = cJSON_GetObjectItem(params, "arguments");
+    mcp_property_list_t* properties = NULL;
     
-    /* Copy tool properties and set values from arguments */
-    if (tool->properties) {
-        for (size_t i = 0; i < tool->properties->count; i++) {
-            mcp_property_t* prop = &tool->properties->properties[i];
-            mcp_property_list_add(arguments, prop);
-            
-            /* Find corresponding argument value */
-            if (tool_arguments) {
-                const cJSON* value = cJSON_GetObjectItem(tool_arguments, prop->name);
-                mcp_property_t* arg_prop = mcp_property_list_find_mutable(arguments, prop->name);
-                
-                if (value && arg_prop) {
-                    bool found = false;
-                    if (prop->type == MCP_PROPERTY_TYPE_BOOLEAN && cJSON_IsBool(value)) {
-                        mcp_property_set_bool_value(arg_prop, value->valueint == 1);
-                        found = true;
-                    } else if (prop->type == MCP_PROPERTY_TYPE_INTEGER && cJSON_IsNumber(value)) {
-                        mcp_property_set_int_value(arg_prop, value->valueint);
-                        found = true;
-                    } else if (prop->type == MCP_PROPERTY_TYPE_STRING && cJSON_IsString(value)) {
-                        mcp_property_set_string_value(arg_prop, value->valuestring);
-                        found = true;
-                    }
-                    
-                    if (!prop->has_default_value && !found) {
-                        char error_msg[256];
-                        snprintf(error_msg, sizeof(error_msg), "Missing valid argument: %s", prop->name);
-                        mcp_server_reply_error(id, error_msg);
-                        mcp_property_list_destroy(arguments);
-                        return;
+    if (arguments && cJSON_IsObject(arguments)) {
+        // 将JSON参数转换为属性列表
+        properties = mcp_property_list_create();
+        if (properties) {
+            // 遍历JSON对象的所有字段
+            const cJSON* arg = NULL;
+            cJSON_ArrayForEach(arg, arguments) {
+                const char* key = arg->string;
+                if (key) {
+                    if (cJSON_IsBool(arg)) {
+                        mcp_property_list_add_boolean(properties, key, cJSON_IsTrue(arg));
+                    } else if (cJSON_IsNumber(arg)) {
+                        mcp_property_list_add_integer(properties, key, arg->valueint);
+                    } else if (cJSON_IsString(arg)) {
+                        mcp_property_list_add_string(properties, key, arg->valuestring);
                     }
                 }
             }
         }
     }
     
-    /* Call the tool */
-    char* result = mcp_tool_call(tool, arguments);
-    mcp_property_list_destroy(arguments);
+    // 调用工具回调函数
+    mcp_return_value_t result = tool->callback(properties);
     
-    if (result) {
-        mcp_server_reply_result(id, result);
-        free(result);
+    // 清理属性列表
+    if (properties) {
+        mcp_property_list_destroy(properties);
+    }
+    
+    // 构建响应
+    char* response = NULL;
+    bool is_error = false;
+    
+    switch (result.type) {
+        case MCP_RETURN_TYPE_BOOL:
+            response = malloc(128);
+            if (response) {
+                snprintf(response, 128, "{\"content\":[{\"type\":\"text\",\"text\":\"%s\"}],\"isError\":false}", 
+                        result.value.bool_val ? "true" : "false");
+            }
+            break;
+        case MCP_RETURN_TYPE_INT:
+            response = malloc(128);
+            if (response) {
+                snprintf(response, 128, "{\"content\":[{\"type\":\"text\",\"text\":\"%d\"}],\"isError\":false}", 
+                        result.value.int_val);
+            }
+            break;
+        case MCP_RETURN_TYPE_STRING:
+            if (result.value.string_val) {
+                size_t len = strlen(result.value.string_val) + 128;
+                response = malloc(len);
+                if (response) {
+                    snprintf(response, len, "{\"content\":[{\"type\":\"text\",\"text\":\"%s\"}],\"isError\":false}", 
+                            result.value.string_val);
+                }
+            }
+            break;
+        case MCP_RETURN_TYPE_JSON:
+            if (result.value.json_val) {
+                char* json_str = cJSON_Print(result.value.json_val);
+                if (json_str) {
+                    size_t len = strlen(json_str) + 128;
+                    response = malloc(len);
+                    if (response) {
+                        snprintf(response, len, "{\"content\":[{\"type\":\"text\",\"text\":%s}],\"isError\":false}", json_str);
+                    }
+                    free(json_str);
+                }
+            }
+            break;
+        case MCP_RETURN_TYPE_IMAGE:
+            if (result.value.image_val) {
+                char* image_json = mcp_image_content_to_json(result.value.image_val);
+                if (image_json) {
+                    size_t len = strlen(image_json) + 128;
+                    response = malloc(len);
+                    if (response) {
+                        snprintf(response, len, "{\"content\":[%s],\"isError\":false}", image_json);
+                    }
+                    free(image_json);
+                }
+            }
+            break;
+        default:
+            response = malloc(256);
+            if (response) {
+                strcpy(response, "{\"content\":[{\"type\":\"text\",\"text\":\"Unsupported return type\"}],\"isError\":true}");
+            }
+            is_error = true;
+            break;
+    }
+    
+    // 清理返回值资源
+    mcp_return_value_cleanup(&result, result.type);
+    
+    if (response) {
+        if (is_error) {
+            mcp_server_reply_error(id, "Tool execution failed");
+        } else {
+            mcp_server_reply_result(id, response);
+        }
+        free(response);
     } else {
-        mcp_server_reply_error(id, "Tool call failed");
+        mcp_server_reply_error(id, "Failed to process tool result - memory allocation error");
     }
 }
 
+/**
+ * 获取工具列表的JSON字符串
+ */
 char* mcp_server_get_tools_list_json(const mcp_server_t* server, const char* cursor, bool list_user_only_tools) {
     if (!server) {
         return NULL;
     }
     
-    const int max_payload_size = 8000;
-    cJSON* json = cJSON_CreateObject();
-    cJSON* tools_array = cJSON_CreateArray();
-    
-    if (!json || !tools_array) {
-        cJSON_Delete(json);
-        cJSON_Delete(tools_array);
+    cJSON* root = cJSON_CreateObject();
+    if (!root) {
         return NULL;
     }
     
-    bool found_cursor = (cursor == NULL || strlen(cursor) == 0);
-    size_t start_index = 0;
-    const char* next_cursor = NULL;
-    
-    /* Find starting position if cursor is provided */
-    if (!found_cursor) {
-        for (size_t i = 0; i < server->tool_count; i++) {
-            if (strcmp(server->tools[i]->name, cursor) == 0) {
-                found_cursor = true;
-                start_index = i;
-                break;
-            }
-        }
+    cJSON* tools_array = cJSON_CreateArray();
+    if (!tools_array) {
+        cJSON_Delete(root);
+        return NULL;
     }
     
-    /* Add tools to array */
-    for (size_t i = start_index; i < server->tool_count; i++) {
+    // 添加工具到数组
+    for (size_t i = 0; i < server->tool_count; i++) {
         const mcp_tool_t* tool = server->tools[i];
         
-        if (!list_user_only_tools && tool->user_only) {
+        // 根据过滤条件决定是否包含此工具
+        if (list_user_only_tools && !mcp_tool_is_user_only(tool)) {
             continue;
         }
         
-        char* tool_json_str = mcp_tool_to_json(tool);
-        if (tool_json_str) {
-            /* Check if adding this tool would exceed size limit */
-            char* current_json_str = cJSON_PrintUnformatted(json);
-            size_t current_size = current_json_str ? strlen(current_json_str) : 0;
-            size_t tool_size = strlen(tool_json_str);
-            
-            if (current_size + tool_size + 100 > max_payload_size) {
-                /* Set next cursor and break */
-                next_cursor = tool->name;
-                free(tool_json_str);
-                free(current_json_str);
-                break;
-            }
-            
-            cJSON* tool_json = cJSON_Parse(tool_json_str);
-            if (tool_json) {
-                cJSON_AddItemToArray(tools_array, tool_json);
-            }
-            
-            free(tool_json_str);
-            free(current_json_str);
+        cJSON* tool_json = mcp_tool_to_json(tool);
+        if (tool_json) {
+            cJSON_AddItemToArray(tools_array, tool_json);
         }
     }
     
-    cJSON_AddItemToObject(json, "tools", tools_array);
+    cJSON_AddItemToObject(root, "tools", tools_array);
     
-    if (next_cursor) {
-        cJSON_AddStringToObject(json, "nextCursor", next_cursor);
+    // 添加分页信息（如果需要）
+    if (cursor) {
+        cJSON_AddStringToObject(root, "nextCursor", cursor);
     }
     
-    char* result = cJSON_PrintUnformatted(json);
-    cJSON_Delete(json);
+    char* json_string = cJSON_Print(root);
+    cJSON_Delete(root);
     
-    return result;
+    return json_string;
 }
