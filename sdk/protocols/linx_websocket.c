@@ -1,0 +1,633 @@
+#include "linx_websocket.h"
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <arpa/inet.h>
+#include <mongoose.h>
+#include "../cjson/cJSON.h"
+
+/* Protocol vtable for WebSocket implementation */
+static const linx_protocol_vtable_t linx_websocket_vtable = {
+    .start = linx_websocket_start,
+    .open_audio_channel = linx_websocket_open_audio_channel,
+    .close_audio_channel = linx_websocket_close_audio_channel,
+    .is_audio_channel_opened = linx_websocket_is_audio_channel_opened,
+    .send_audio = linx_websocket_send_audio,
+    .send_text = linx_websocket_send_text,
+    .destroy = linx_websocket_destroy
+};
+
+/* WebSocket protocol creation and destruction */
+linx_websocket_protocol_t* linx_websocket_protocol_create(void) {
+    linx_websocket_protocol_t* ws_protocol = malloc(sizeof(linx_websocket_protocol_t));
+    if (!ws_protocol) {
+        return NULL;
+    }
+    
+    memset(ws_protocol, 0, sizeof(linx_websocket_protocol_t));
+    
+    /* Initialize base protocol */
+    linx_protocol_init(&ws_protocol->base, &linx_websocket_vtable);
+    
+    /* Initialize mongoose manager */
+    mg_mgr_init(&ws_protocol->mgr);
+    
+    /* Set default values */
+    ws_protocol->connected = false;
+    ws_protocol->audio_channel_opened = false;
+    ws_protocol->version = 1;
+    ws_protocol->server_hello_received = false;
+    ws_protocol->running = false;
+    ws_protocol->should_stop = false;
+    ws_protocol->conn = NULL;
+    ws_protocol->auth_token = NULL;
+    ws_protocol->device_id = NULL;
+    ws_protocol->client_id = NULL;
+    
+    return ws_protocol;
+}
+
+void linx_websocket_protocol_destroy(linx_websocket_protocol_t* ws_protocol) {
+    if (!ws_protocol) {
+        return;
+    }
+    
+    /* Stop the protocol if running */
+    linx_websocket_stop(ws_protocol);
+    
+    /* Clean up connection */
+    if (ws_protocol->conn) {
+        ws_protocol->conn->is_closing = 1;
+        ws_protocol->conn = NULL;
+    }
+    
+    /* Clean up mongoose manager */
+    mg_mgr_free(&ws_protocol->mgr);
+    
+    /* Free allocated strings */
+    if (ws_protocol->server_url) {
+        free(ws_protocol->server_url);
+    }
+    if (ws_protocol->server_host) {
+        free(ws_protocol->server_host);
+    }
+    if (ws_protocol->server_path) {
+        free(ws_protocol->server_path);
+    }
+    if (ws_protocol->auth_token) {
+        free(ws_protocol->auth_token);
+    }
+    if (ws_protocol->device_id) {
+        free(ws_protocol->device_id);
+    }
+    if (ws_protocol->client_id) {
+        free(ws_protocol->client_id);
+    }
+    
+    /* Destroy base protocol */
+    linx_protocol_destroy(&ws_protocol->base);
+    
+    free(ws_protocol);
+}
+
+/* Configuration functions */
+bool linx_websocket_protocol_set_server_url(linx_websocket_protocol_t* ws_protocol, const char* url) {
+    if (!ws_protocol || !url) {
+        return false;
+    }
+    
+    if (ws_protocol->server_url) {
+        free(ws_protocol->server_url);
+    }
+    
+    ws_protocol->server_url = strdup(url);
+    return ws_protocol->server_url != NULL;
+}
+
+bool linx_websocket_protocol_set_server(linx_websocket_protocol_t* ws_protocol, 
+                                        const char* host, 
+                                        int port, 
+                                        const char* path) {
+    if (!ws_protocol || !host || !path) {
+        return false;
+    }
+    
+    /* Free existing values */
+    if (ws_protocol->server_host) {
+        free(ws_protocol->server_host);
+    }
+    if (ws_protocol->server_path) {
+        free(ws_protocol->server_path);
+    }
+    if (ws_protocol->server_url) {
+        free(ws_protocol->server_url);
+    }
+    
+    /* Set new values */
+    ws_protocol->server_host = strdup(host);
+    ws_protocol->server_port = port;
+    ws_protocol->server_path = strdup(path);
+    
+    /* Construct URL */
+    char url[512];
+    snprintf(url, sizeof(url), "ws://%s:%d%s", host, port, path);
+    ws_protocol->server_url = strdup(url);
+    
+    return ws_protocol->server_host && ws_protocol->server_path && ws_protocol->server_url;
+}
+
+bool linx_websocket_protocol_set_auth_token(linx_websocket_protocol_t* ws_protocol, const char* token) {
+    if (!ws_protocol || !token) {
+        return false;
+    }
+    
+    if (ws_protocol->auth_token) {
+        free(ws_protocol->auth_token);
+    }
+    
+    ws_protocol->auth_token = strdup(token);
+    return ws_protocol->auth_token != NULL;
+}
+
+bool linx_websocket_protocol_set_device_id(linx_websocket_protocol_t* ws_protocol, const char* device_id) {
+    if (!ws_protocol || !device_id) {
+        return false;
+    }
+    
+    if (ws_protocol->device_id) {
+        free(ws_protocol->device_id);
+    }
+    
+    ws_protocol->device_id = strdup(device_id);
+    return ws_protocol->device_id != NULL;
+}
+
+bool linx_websocket_protocol_set_client_id(linx_websocket_protocol_t* ws_protocol, const char* client_id) {
+    if (!ws_protocol || !client_id) {
+        return false;
+    }
+    
+    if (ws_protocol->client_id) {
+        free(ws_protocol->client_id);
+    }
+    
+    ws_protocol->client_id = strdup(client_id);
+    return ws_protocol->client_id != NULL;
+}
+
+/* Event handler for mongoose WebSocket events */
+void linx_websocket_event_handler(struct mg_connection* conn, int ev, void* ev_data) {
+    linx_websocket_protocol_t* ws_protocol = (linx_websocket_protocol_t*)conn->fn_data;
+    
+    if (!ws_protocol) {
+        return;
+    }
+    
+    switch (ev) {
+        case MG_EV_CONNECT: {
+            /* Connection established, but not yet upgraded to WebSocket */
+            /* Set HTTP headers before WebSocket upgrade */
+            if (ws_protocol->auth_token) {
+                char auth_header[512];
+                /* Add "Bearer " prefix if token doesn't have a space */
+                if (strchr(ws_protocol->auth_token, ' ') == NULL) {
+                    snprintf(auth_header, sizeof(auth_header), "Bearer %s", ws_protocol->auth_token);
+                } else {
+                    snprintf(auth_header, sizeof(auth_header), "%s", ws_protocol->auth_token);
+                }
+                mg_http_set_header(conn, "Authorization", auth_header);
+            }
+            
+            if (ws_protocol->version > 0) {
+                char version_str[16];
+                snprintf(version_str, sizeof(version_str), "%d", ws_protocol->version);
+                mg_http_set_header(conn, "Protocol-Version", version_str);
+            }
+            
+            if (ws_protocol->device_id) {
+                mg_http_set_header(conn, "Device-Id", ws_protocol->device_id);
+            }
+            
+            if (ws_protocol->client_id) {
+                mg_http_set_header(conn, "Client-Id", ws_protocol->client_id);
+            }
+            break;
+        }
+        
+        case MG_EV_WS_OPEN: {
+            /* WebSocket connection opened */
+            ws_protocol->connected = true;
+            if (ws_protocol->base.on_connected) {
+                ws_protocol->base.on_connected(ws_protocol->base.user_data);
+            }
+            
+            /* Send hello message */
+            char* hello_msg = linx_websocket_get_hello_message(ws_protocol);
+            if (hello_msg) {
+                mg_ws_send(conn, hello_msg, strlen(hello_msg), WEBSOCKET_OP_TEXT);
+                free(hello_msg);
+            }
+            break;
+        }
+        
+        case MG_EV_WS_MSG: {
+            /* WebSocket message received */
+            struct mg_ws_message* wm = (struct mg_ws_message*)ev_data;
+            
+            if (wm->flags & WEBSOCKET_OP_TEXT) {
+                /* Text message - parse as JSON */
+                cJSON* json = cJSON_ParseWithLength((const char*)wm->data.ptr, wm->data.len);
+                if (json) {
+                    /* Check if it's a server hello message */
+                    cJSON* type = cJSON_GetObjectItem(json, "type");
+                    if (type && cJSON_IsString(type) && strcmp(type->valuestring, "hello") == 0) {
+                        linx_websocket_parse_server_hello(ws_protocol, json);
+                    }
+                    
+                    /* Call user callback */
+                    if (ws_protocol->base.on_incoming_json) {
+                        ws_protocol->base.on_incoming_json(json, ws_protocol->base.user_data);
+                    }
+                    
+                    cJSON_Delete(json);
+                }
+            } else if (wm->flags & WEBSOCKET_OP_BINARY) {
+                /* Binary message - parse as audio data */
+                if (wm->data.len >= sizeof(linx_binary_protocol2_t)) {
+                    linx_binary_protocol2_t* bp2 = (linx_binary_protocol2_t*)wm->data.ptr;
+                    uint16_t version = ntohs(bp2->version);
+                    uint16_t type = ntohs(bp2->type);
+                    uint32_t payload_size = ntohl(bp2->payload_size);
+                    
+                    if (type == 0 && payload_size > 0) { /* Audio data */
+                        linx_audio_stream_packet_t* packet = linx_audio_stream_packet_create(payload_size);
+                        if (packet) {
+                            packet->timestamp = ntohl(bp2->timestamp);
+                            memcpy(packet->payload, bp2->payload, payload_size);
+                            
+                            if (ws_protocol->base.on_incoming_audio) {
+                                ws_protocol->base.on_incoming_audio(packet, ws_protocol->base.user_data);
+                            }
+                            
+                            linx_audio_stream_packet_destroy(packet);
+                        }
+                    }
+                }
+            }
+            break;
+        }
+        
+        case MG_EV_CLOSE: {
+            /* Connection closed */
+            ws_protocol->connected = false;
+            ws_protocol->audio_channel_opened = false;
+            ws_protocol->conn = NULL;
+            
+            if (ws_protocol->base.on_disconnected) {
+                ws_protocol->base.on_disconnected(ws_protocol->base.user_data);
+            }
+            break;
+        }
+        
+        case MG_EV_ERROR: {
+            /* Connection error */
+            char* error_msg = (char*)ev_data;
+            linx_protocol_set_error(&ws_protocol->base, error_msg ? error_msg : "WebSocket connection error");
+            break;
+        }
+    }
+}
+
+/* Protocol implementation functions */
+bool linx_websocket_start(linx_protocol_t* protocol) {
+    linx_websocket_protocol_t* ws_protocol = (linx_websocket_protocol_t*)protocol;
+    
+    if (!ws_protocol || !ws_protocol->server_url) {
+        return false;
+    }
+    
+    /* Create WebSocket connection */
+    ws_protocol->conn = mg_ws_connect(&ws_protocol->mgr, ws_protocol->server_url, 
+                                     linx_websocket_event_handler, ws_protocol, NULL);
+    
+    if (!ws_protocol->conn) {
+        return false;
+    }
+    
+    ws_protocol->running = true;
+    ws_protocol->should_stop = false;
+    
+    return true;
+}
+
+bool linx_websocket_open_audio_channel(linx_protocol_t* protocol) {
+    linx_websocket_protocol_t* ws_protocol = (linx_websocket_protocol_t*)protocol;
+    
+    if (!ws_protocol || !ws_protocol->connected) {
+        return false;
+    }
+    
+    /* For WebSocket, audio channel is considered opened when connection is established */
+    ws_protocol->audio_channel_opened = true;
+    
+    if (ws_protocol->base.on_audio_channel_opened) {
+        ws_protocol->base.on_audio_channel_opened(ws_protocol->base.user_data);
+    }
+    
+    return true;
+}
+
+void linx_websocket_close_audio_channel(linx_protocol_t* protocol) {
+    linx_websocket_protocol_t* ws_protocol = (linx_websocket_protocol_t*)protocol;
+    
+    if (!ws_protocol) {
+        return;
+    }
+    
+    ws_protocol->audio_channel_opened = false;
+    
+    if (ws_protocol->base.on_audio_channel_closed) {
+        ws_protocol->base.on_audio_channel_closed(ws_protocol->base.user_data);
+    }
+}
+
+bool linx_websocket_is_audio_channel_opened(const linx_protocol_t* protocol) {
+    const linx_websocket_protocol_t* ws_protocol = (const linx_websocket_protocol_t*)protocol;
+    return ws_protocol ? ws_protocol->audio_channel_opened : false;
+}
+
+bool linx_websocket_send_audio(linx_protocol_t* protocol, linx_audio_stream_packet_t* packet) {
+    linx_websocket_protocol_t* ws_protocol = (linx_websocket_protocol_t*)protocol;
+    
+    if (!ws_protocol || !ws_protocol->conn || !ws_protocol->connected || !packet) {
+        return false;
+    }
+    
+    if (ws_protocol->version == 2) {
+        /* Use binary protocol v2 */
+        size_t total_size = sizeof(linx_binary_protocol2_t) + packet->payload_size;
+        uint8_t* buffer = malloc(total_size);
+        if (!buffer) {
+            return false;
+        }
+        
+        linx_binary_protocol2_t* bp2 = (linx_binary_protocol2_t*)buffer;
+        bp2->version = htons(ws_protocol->version);
+        bp2->type = htons(0); /* Audio type */
+        bp2->reserved = 0;
+        bp2->timestamp = htonl(packet->timestamp);
+        bp2->payload_size = htonl(packet->payload_size);
+        memcpy(bp2->payload, packet->payload, packet->payload_size);
+        
+        mg_ws_send(ws_protocol->conn, buffer, total_size, WEBSOCKET_OP_BINARY);
+        free(buffer);
+        
+        return true;
+    } else if (ws_protocol->version == 3) {
+        /* Use binary protocol v3 */
+        size_t total_size = sizeof(linx_binary_protocol3_t) + packet->payload_size;
+        uint8_t* buffer = malloc(total_size);
+        if (!buffer) {
+            return false;
+        }
+        
+        linx_binary_protocol3_t* bp3 = (linx_binary_protocol3_t*)buffer;
+        bp3->type = 0; /* Audio type */
+        bp3->reserved = 0;
+        bp3->payload_size = htons(packet->payload_size);
+        memcpy(bp3->payload, packet->payload, packet->payload_size);
+        
+        mg_ws_send(ws_protocol->conn, buffer, total_size, WEBSOCKET_OP_BINARY);
+        free(buffer);
+        
+        return true;
+    }
+    
+    return false;
+}
+
+bool linx_websocket_send_text(linx_protocol_t* protocol, const char* text) {
+    linx_websocket_protocol_t* ws_protocol = (linx_websocket_protocol_t*)protocol;
+    
+    if (!ws_protocol || !ws_protocol->conn || !ws_protocol->connected || !text) {
+        return false;
+    }
+    
+    mg_ws_send(ws_protocol->conn, text, strlen(text), WEBSOCKET_OP_TEXT);
+    return true;
+}
+
+void linx_websocket_destroy(linx_protocol_t* protocol) {
+    linx_websocket_protocol_t* ws_protocol = (linx_websocket_protocol_t*)protocol;
+    linx_websocket_protocol_destroy(ws_protocol);
+}
+
+void linx_websocket_destroy_direct(linx_websocket_protocol_t* protocol) {
+    linx_websocket_protocol_destroy(protocol);
+}
+
+/* Event loop functions */
+void linx_websocket_poll(linx_websocket_protocol_t* ws_protocol, int timeout_ms) {
+    if (!ws_protocol) {
+        return;
+    }
+    
+    mg_mgr_poll(&ws_protocol->mgr, timeout_ms);
+}
+
+void linx_websocket_stop(linx_websocket_protocol_t* ws_protocol) {
+    if (!ws_protocol) {
+        return;
+    }
+    
+    ws_protocol->should_stop = true;
+    ws_protocol->running = false;
+    
+    if (ws_protocol->conn) {
+        ws_protocol->conn->is_closing = 1;
+        ws_protocol->conn = NULL;
+    }
+}
+
+/* cJSON-based JSON value extraction helpers */
+static char* extract_json_string_value(const cJSON* json, const char* key) {
+    const cJSON* item = cJSON_GetObjectItemCaseSensitive(json, key);
+    if (!cJSON_IsString(item) || (item->valuestring == NULL)) {
+        return NULL;
+    }
+    
+    size_t len = strlen(item->valuestring);
+    char* result = malloc(len + 1);
+    if (!result) return NULL;
+    
+    strcpy(result, item->valuestring);
+    return result;
+}
+
+static int extract_json_int_value(const cJSON* json, const char* key) {
+    const cJSON* item = cJSON_GetObjectItemCaseSensitive(json, key);
+    if (!cJSON_IsNumber(item)) {
+        return -1;
+    }
+    
+    return item->valueint;
+}
+
+/* Helper functions */
+bool linx_websocket_parse_server_hello(linx_websocket_protocol_t* ws_protocol, const char* json_str) {
+    if (!ws_protocol || !json_str) {
+        return false;
+    }
+    
+    cJSON* root = cJSON_Parse(json_str);
+    if (!root) {
+        return false;
+    }
+    
+    /* Check transport type */
+    char* transport = extract_json_string_value(root, "transport");
+    if (transport) {
+        if (strcmp(transport, "websocket") != 0) {
+            free(transport);
+            cJSON_Delete(root);
+            return false;
+        }
+        free(transport);
+    }
+    
+    /* Parse session ID */
+    char* session_id = extract_json_string_value(root, "session_id");
+    if (session_id) {
+        if (ws_protocol->session_id) {
+            free(ws_protocol->session_id);
+        }
+        ws_protocol->session_id = session_id;
+    }
+    
+    /* Parse audio_params section */
+    const cJSON* audio_params = cJSON_GetObjectItemCaseSensitive(root, "audio_params");
+    if (cJSON_IsObject(audio_params)) {
+        int sample_rate = extract_json_int_value(audio_params, "sample_rate");
+        if (sample_rate > 0) {
+            ws_protocol->server_sample_rate = sample_rate;
+        }
+        
+        int frame_duration = extract_json_int_value(audio_params, "frame_duration");
+        if (frame_duration > 0) {
+            ws_protocol->server_frame_duration = frame_duration;
+        }
+    }
+    
+    ws_protocol->server_hello_received = true;
+    cJSON_Delete(root);
+    return true;
+}
+
+char* linx_websocket_get_hello_message(linx_websocket_protocol_t* ws_protocol) {
+    if (!ws_protocol) {
+        return NULL;
+    }
+    
+    /* Build JSON using cJSON for better structure */
+    cJSON* root = cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "type", "hello");
+    cJSON_AddNumberToObject(root, "version", ws_protocol->version);
+    
+    /* Add features object */
+    cJSON* features = cJSON_CreateObject();
+    cJSON_AddBoolToObject(features, "mcp", true);
+    /* Note: AEC feature would be added here if supported */
+    cJSON_AddItemToObject(root, "features", features);
+    
+    cJSON_AddStringToObject(root, "transport", "websocket");
+    
+    /* Add audio_params object */
+    cJSON* audio_params = cJSON_CreateObject();
+    cJSON_AddStringToObject(audio_params, "format", "opus");
+    cJSON_AddNumberToObject(audio_params, "sample_rate", 16000);
+    cJSON_AddNumberToObject(audio_params, "channels", 1);
+    cJSON_AddNumberToObject(audio_params, "frame_duration", 60);
+    cJSON_AddItemToObject(root, "audio_params", audio_params);
+    
+    char* json_string = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    
+    return json_string;
+}
+
+/* Utility functions */
+bool linx_websocket_is_connected(const linx_websocket_protocol_t* ws_protocol) {
+    return ws_protocol ? ws_protocol->connected : false;
+}
+
+/* Additional WebSocket functions */
+int linx_websocket_get_reconnect_attempts(const linx_websocket_protocol_t* protocol) {
+    /* TODO: Add reconnect attempts tracking */
+    return 0;
+}
+
+void linx_websocket_reset_reconnect_attempts(linx_websocket_protocol_t* protocol) {
+    /* TODO: Reset reconnect attempts counter */
+}
+
+void linx_websocket_process_events(linx_websocket_protocol_t* protocol) {
+    if (!protocol) return;
+    linx_websocket_poll(protocol, 10);
+}
+
+bool linx_websocket_send_ping(linx_websocket_protocol_t* protocol) {
+    if (!protocol || !protocol->conn) {
+        return false;
+    }
+    
+    mg_ws_send(protocol->conn, "", 0, WEBSOCKET_OP_PING);
+    return true;
+}
+
+bool linx_websocket_is_connection_timeout(const linx_websocket_protocol_t* protocol) {
+    /* TODO: Implement connection timeout check */
+    return false;
+}
+
+/* WebSocket create function with config */
+linx_websocket_protocol_t* linx_websocket_create(const linx_websocket_config_t* config) {
+    if (!config || !config->url) {
+        return NULL;
+    }
+    
+    linx_websocket_protocol_t* ws_protocol = linx_websocket_protocol_create();
+    if (!ws_protocol) {
+        return NULL;
+    }
+    
+    /* Set server URL */
+    if (!linx_websocket_protocol_set_server_url(ws_protocol, config->url)) {
+        linx_websocket_protocol_destroy(ws_protocol);
+        return NULL;
+    }
+    
+    /* Set authentication token if provided */
+    if (config->auth_token && !linx_websocket_protocol_set_auth_token(ws_protocol, config->auth_token)) {
+        linx_websocket_protocol_destroy(ws_protocol);
+        return NULL;
+    }
+    
+    /* Set device ID if provided */
+    if (config->device_id && !linx_websocket_protocol_set_device_id(ws_protocol, config->device_id)) {
+        linx_websocket_protocol_destroy(ws_protocol);
+        return NULL;
+    }
+    
+    /* Set client ID if provided */
+    if (config->client_id && !linx_websocket_protocol_set_client_id(ws_protocol, config->client_id)) {
+        linx_websocket_protocol_destroy(ws_protocol);
+        return NULL;
+    }
+    
+    /* Set protocol version if provided */
+    if (config->protocol_version > 0) {
+        ws_protocol->version = config->protocol_version;
+    }
+    
+    return ws_protocol;
+}
