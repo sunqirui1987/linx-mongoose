@@ -6,6 +6,19 @@
 #include <mongoose.h>
 #include "../cjson/cJSON.h"
 
+/* Internal helper function declarations */
+static void linx_websocket_protocol_destroy(linx_websocket_protocol_t* ws_protocol);
+static bool linx_websocket_parse_server_hello(linx_websocket_protocol_t* ws_protocol, const char* json_str);
+static char* linx_websocket_get_hello_message(linx_websocket_protocol_t* ws_protocol);
+static void linx_websocket_event_handler(struct mg_connection* conn, int ev, void* ev_data);
+static char* extract_json_string_value(const cJSON* json, const char* key);
+static int extract_json_int_value(const cJSON* json, const char* key);
+static bool linx_websocket_protocol_set_server_url(linx_websocket_protocol_t* ws_protocol, const char* url);
+static bool linx_websocket_protocol_set_server(linx_websocket_protocol_t* ws_protocol, const char* host, int port, const char* path);
+static bool linx_websocket_protocol_set_auth_token(linx_websocket_protocol_t* ws_protocol, const char* token);
+static bool linx_websocket_protocol_set_device_id(linx_websocket_protocol_t* ws_protocol, const char* device_id);
+static bool linx_websocket_protocol_set_client_id(linx_websocket_protocol_t* ws_protocol, const char* client_id);
+
 /* Protocol vtable for WebSocket implementation */
 static const linx_protocol_vtable_t linx_websocket_vtable = {
     .start = linx_websocket_start,
@@ -15,7 +28,11 @@ static const linx_protocol_vtable_t linx_websocket_vtable = {
 };
 
 /* WebSocket protocol creation and destruction */
-linx_websocket_protocol_t* linx_websocket_protocol_create(void) {
+linx_websocket_protocol_t* linx_websocket_protocol_create(const linx_websocket_config_t* config) {
+    if (!config) {
+        return NULL;
+    }
+    
     linx_websocket_protocol_t* ws_protocol = malloc(sizeof(linx_websocket_protocol_t));
     if (!ws_protocol) {
         return NULL;
@@ -41,10 +58,59 @@ linx_websocket_protocol_t* linx_websocket_protocol_create(void) {
     ws_protocol->device_id = NULL;
     ws_protocol->client_id = NULL;
     
+    /* Configure server connection */
+    if (config->url) {
+        if (!linx_websocket_protocol_set_server_url(ws_protocol, config->url)) {
+            linx_websocket_protocol_destroy(ws_protocol);
+            free(ws_protocol);
+            return NULL;
+        }
+    } else if (config->host && config->path) {
+        if (!linx_websocket_protocol_set_server(ws_protocol, config->host, config->port, config->path)) {
+            linx_websocket_protocol_destroy(ws_protocol);
+            free(ws_protocol);
+            return NULL;
+        }
+    } else {
+        linx_websocket_protocol_destroy(ws_protocol);
+        free(ws_protocol);
+        return NULL; /* Either url or host+path must be provided */
+    }
+    
+    /* Configure authentication and identification */
+    if (config->auth_token) {
+        if (!linx_websocket_protocol_set_auth_token(ws_protocol, config->auth_token)) {
+            linx_websocket_protocol_destroy(ws_protocol);
+            free(ws_protocol);
+            return NULL;
+        }
+    }
+    
+    if (config->device_id) {
+        if (!linx_websocket_protocol_set_device_id(ws_protocol, config->device_id)) {
+            linx_websocket_protocol_destroy(ws_protocol);
+            free(ws_protocol);
+            return NULL;
+        }
+    }
+    
+    if (config->client_id) {
+        if (!linx_websocket_protocol_set_client_id(ws_protocol, config->client_id)) {
+            linx_websocket_protocol_destroy(ws_protocol);
+            free(ws_protocol);
+            return NULL;
+        }
+    }
+    
+    /* Set protocol version */
+    if (config->protocol_version > 0) {
+        ws_protocol->version = config->protocol_version;
+    }
+    
     return ws_protocol;
 }
 
-void linx_websocket_protocol_destroy(linx_websocket_protocol_t* ws_protocol) {
+static void linx_websocket_protocol_destroy(linx_websocket_protocol_t* ws_protocol) {
     if (!ws_protocol) {
         return;
     }
@@ -90,8 +156,8 @@ void linx_websocket_protocol_destroy(linx_websocket_protocol_t* ws_protocol) {
     free(ws_protocol);
 }
 
-/* Configuration functions */
-bool linx_websocket_protocol_set_server_url(linx_websocket_protocol_t* ws_protocol, const char* url) {
+/* Internal configuration functions */
+static bool linx_websocket_protocol_set_server_url(linx_websocket_protocol_t* ws_protocol, const char* url) {
     if (!ws_protocol || !url) {
         return false;
     }
@@ -104,7 +170,7 @@ bool linx_websocket_protocol_set_server_url(linx_websocket_protocol_t* ws_protoc
     return ws_protocol->server_url != NULL;
 }
 
-bool linx_websocket_protocol_set_server(linx_websocket_protocol_t* ws_protocol, 
+static bool linx_websocket_protocol_set_server(linx_websocket_protocol_t* ws_protocol, 
                                         const char* host, 
                                         int port, 
                                         const char* path) {
@@ -136,7 +202,7 @@ bool linx_websocket_protocol_set_server(linx_websocket_protocol_t* ws_protocol,
     return ws_protocol->server_host && ws_protocol->server_path && ws_protocol->server_url;
 }
 
-bool linx_websocket_protocol_set_auth_token(linx_websocket_protocol_t* ws_protocol, const char* token) {
+static bool linx_websocket_protocol_set_auth_token(linx_websocket_protocol_t* ws_protocol, const char* token) {
     if (!ws_protocol || !token) {
         return false;
     }
@@ -149,7 +215,7 @@ bool linx_websocket_protocol_set_auth_token(linx_websocket_protocol_t* ws_protoc
     return ws_protocol->auth_token != NULL;
 }
 
-bool linx_websocket_protocol_set_device_id(linx_websocket_protocol_t* ws_protocol, const char* device_id) {
+static bool linx_websocket_protocol_set_device_id(linx_websocket_protocol_t* ws_protocol, const char* device_id) {
     if (!ws_protocol || !device_id) {
         return false;
     }
@@ -162,7 +228,7 @@ bool linx_websocket_protocol_set_device_id(linx_websocket_protocol_t* ws_protoco
     return ws_protocol->device_id != NULL;
 }
 
-bool linx_websocket_protocol_set_client_id(linx_websocket_protocol_t* ws_protocol, const char* client_id) {
+static bool linx_websocket_protocol_set_client_id(linx_websocket_protocol_t* ws_protocol, const char* client_id) {
     if (!ws_protocol || !client_id) {
         return false;
     }
@@ -175,8 +241,11 @@ bool linx_websocket_protocol_set_client_id(linx_websocket_protocol_t* ws_protoco
     return ws_protocol->client_id != NULL;
 }
 
+/* Public configuration function */
+
+
 /* Event handler for mongoose WebSocket events */
-void linx_websocket_event_handler(struct mg_connection* conn, int ev, void* ev_data) {
+static void linx_websocket_event_handler(struct mg_connection* conn, int ev, void* ev_data) {
     linx_websocket_protocol_t* ws_protocol = (linx_websocket_protocol_t*)conn->fn_data;
     
     if (!ws_protocol) {
@@ -497,10 +566,6 @@ void linx_websocket_destroy(linx_protocol_t* protocol) {
     linx_websocket_protocol_destroy(ws_protocol);
 }
 
-void linx_websocket_destroy_direct(linx_websocket_protocol_t* protocol) {
-    linx_websocket_protocol_destroy(protocol);
-}
-
 /* Event loop functions */
 void linx_websocket_poll(linx_websocket_protocol_t* ws_protocol, int timeout_ms) {
     if (!ws_protocol) {
@@ -549,7 +614,7 @@ static int extract_json_int_value(const cJSON* json, const char* key) {
 }
 
 /* Helper functions */
-bool linx_websocket_parse_server_hello(linx_websocket_protocol_t* ws_protocol, const char* json_str) {
+static bool linx_websocket_parse_server_hello(linx_websocket_protocol_t* ws_protocol, const char* json_str) {
     if (!ws_protocol || !json_str) {
         return false;
     }
@@ -598,7 +663,7 @@ bool linx_websocket_parse_server_hello(linx_websocket_protocol_t* ws_protocol, c
     return true;
 }
 
-char* linx_websocket_get_hello_message(linx_websocket_protocol_t* ws_protocol) {
+static char* linx_websocket_get_hello_message(linx_websocket_protocol_t* ws_protocol) {
     if (!ws_protocol) {
         return NULL;
     }
@@ -666,43 +731,5 @@ bool linx_websocket_is_connection_timeout(const linx_websocket_protocol_t* proto
 
 /* WebSocket create function with config */
 linx_websocket_protocol_t* linx_websocket_create(const linx_websocket_config_t* config) {
-    if (!config || !config->url) {
-        return NULL;
-    }
-    
-    linx_websocket_protocol_t* ws_protocol = linx_websocket_protocol_create();
-    if (!ws_protocol) {
-        return NULL;
-    }
-    
-    /* Set server URL */
-    if (!linx_websocket_protocol_set_server_url(ws_protocol, config->url)) {
-        linx_websocket_protocol_destroy(ws_protocol);
-        return NULL;
-    }
-    
-    /* Set authentication token if provided */
-    if (config->auth_token && !linx_websocket_protocol_set_auth_token(ws_protocol, config->auth_token)) {
-        linx_websocket_protocol_destroy(ws_protocol);
-        return NULL;
-    }
-    
-    /* Set device ID if provided */
-    if (config->device_id && !linx_websocket_protocol_set_device_id(ws_protocol, config->device_id)) {
-        linx_websocket_protocol_destroy(ws_protocol);
-        return NULL;
-    }
-    
-    /* Set client ID if provided */
-    if (config->client_id && !linx_websocket_protocol_set_client_id(ws_protocol, config->client_id)) {
-        linx_websocket_protocol_destroy(ws_protocol);
-        return NULL;
-    }
-    
-    /* Set protocol version if provided */
-    if (config->protocol_version > 0) {
-        ws_protocol->version = config->protocol_version;
-    }
-    
-    return ws_protocol;
+    return linx_websocket_protocol_create(config);
 }

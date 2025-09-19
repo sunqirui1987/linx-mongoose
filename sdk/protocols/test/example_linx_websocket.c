@@ -278,7 +278,7 @@ static void* websocket_event_thread(void* arg) {
     
     while (is_app_running()) {
         if (g_ws_protocol) {
-            linx_websocket_process_events(g_ws_protocol);
+            linx_websocket_poll(g_ws_protocol, 10);
         }
         usleep(10000); // 10ms
     }
@@ -471,16 +471,16 @@ int main() {
     // 2. 创建 WebSocket 协议实例
     printf("2️⃣ 创建 WebSocket 协议实例...\n");
     //"ws://114.66.50.145:8000/xiaozhi/v1/",// "
-
+    //"ws://114.66.50.145:8000/xiaozhi/v1/",// 
     linx_websocket_config_t config = {
-        .url = "ws://114.66.50.145:8000/xiaozhi/v1/",// "ws://xrobo-io.qiniuapi.com/v1/ws/",
+        .url = "ws://xrobo-io.qiniuapi.com/v1/ws/",
         .auth_token = "test-token",
         .device_id = "98:a3:16:f9:d9:34",
         .client_id = "test-client",
         .protocol_version = 1
     };
     
-    g_ws_protocol = linx_websocket_create(&config);
+    g_ws_protocol = linx_websocket_protocol_create(&config);
     if (!g_ws_protocol) {
         fprintf(stderr, "❌ 创建 WebSocket 协议失败\n");
         return 1;
@@ -500,7 +500,7 @@ int main() {
     printf("4️⃣ 启动 WebSocket 连接...\n");
     if (!linx_websocket_start((linx_protocol_t*)g_ws_protocol)) {
         printf("❌ WebSocket 连接启动失败\n");
-        linx_websocket_destroy_direct(g_ws_protocol);
+        linx_websocket_destroy((linx_protocol_t*)g_ws_protocol);
         return 1;
     }
     printf("✅ WebSocket 连接启动成功\n\n");
