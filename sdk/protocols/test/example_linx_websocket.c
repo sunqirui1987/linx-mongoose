@@ -489,11 +489,15 @@ int main() {
 
     // 3. 设置回调函数
     printf("3️⃣ 设置回调函数...\n");
-    linx_protocol_set_on_connected((linx_protocol_t*)g_ws_protocol, on_websocket_connected, NULL);
-    linx_protocol_set_on_disconnected((linx_protocol_t*)g_ws_protocol, on_websocket_disconnected, NULL);
-    linx_protocol_set_on_network_error((linx_protocol_t*)g_ws_protocol, on_websocket_error, NULL);
-    linx_protocol_set_on_incoming_json((linx_protocol_t*)g_ws_protocol, on_websocket_message, NULL);
-    linx_protocol_set_on_incoming_audio((linx_protocol_t*)g_ws_protocol, on_websocket_audio_data, NULL);
+    linx_protocol_callbacks_t callbacks = {
+        .on_connected = on_websocket_connected,
+        .on_disconnected = on_websocket_disconnected,
+        .on_network_error = on_websocket_error,
+        .on_incoming_json = on_websocket_message,
+        .on_incoming_audio = on_websocket_audio_data,
+        .user_data = NULL
+    };
+    linx_protocol_set_callbacks((linx_protocol_t*)g_ws_protocol, &callbacks);
     printf("✅ 回调函数设置完成\n\n");
 
     // 4. 启动 WebSocket 连接

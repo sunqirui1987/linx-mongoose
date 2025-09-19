@@ -261,8 +261,8 @@ static void linx_websocket_event_handler(struct mg_connection* conn, int ev, voi
         case MG_EV_WS_OPEN: {
             /* WebSocket connection opened */
             ws_protocol->connected = true;
-            if (ws_protocol->base.on_connected) {
-                ws_protocol->base.on_connected(ws_protocol->base.user_data);
+            if (ws_protocol->base.callbacks.on_connected) {
+                ws_protocol->base.callbacks.on_connected(ws_protocol->base.callbacks.user_data);
             }
             
             /* Send hello message */
@@ -315,8 +315,8 @@ static void linx_websocket_event_handler(struct mg_connection* conn, int ev, voi
                 } 
 
                 /* Other message types - call user callback */
-                if (ws_protocol->base.on_incoming_json) {
-                    ws_protocol->base.on_incoming_json(json, ws_protocol->base.user_data);
+                if (ws_protocol->base.callbacks.on_incoming_json) {
+                    ws_protocol->base.callbacks.on_incoming_json(json, ws_protocol->base.callbacks.user_data);
                     printf("[WebSocket] User callback executed for type: %s\n", type->valuestring);
                 } else {
                     printf("[WebSocket] No user callback registered\n");
@@ -327,7 +327,7 @@ static void linx_websocket_event_handler(struct mg_connection* conn, int ev, voi
             } else if (wm->flags & WEBSOCKET_OP_BINARY) {
                
                 /* Binary message - parse as audio data based on protocol version */
-                if (ws_protocol->base.on_incoming_audio) {
+                if (ws_protocol->base.callbacks.on_incoming_audio) {
                     if (ws_protocol->version == 2) {
                         /* Use binary protocol v2 */
                         if (wm->data.len >= sizeof(linx_binary_protocol2_t)) {
@@ -345,7 +345,7 @@ static void linx_websocket_event_handler(struct mg_connection* conn, int ev, voi
                                     packet->timestamp = timestamp;
                                     memcpy(packet->payload, bp2->payload, payload_size);
                                     
-                                    ws_protocol->base.on_incoming_audio(packet, ws_protocol->base.user_data);
+                                    ws_protocol->base.callbacks.on_incoming_audio(packet, ws_protocol->base.callbacks.user_data);
                                     linx_audio_stream_packet_destroy(packet);
                                 }
                             }
@@ -365,7 +365,7 @@ static void linx_websocket_event_handler(struct mg_connection* conn, int ev, voi
                                     packet->timestamp = 0; /* v3 protocol doesn't include timestamp */
                                     memcpy(packet->payload, bp3->payload, payload_size);
                                     
-                                    ws_protocol->base.on_incoming_audio(packet, ws_protocol->base.user_data);
+                                    ws_protocol->base.callbacks.on_incoming_audio(packet, ws_protocol->base.callbacks.user_data);
                                     linx_audio_stream_packet_destroy(packet);
                                 }
                             }
@@ -379,7 +379,7 @@ static void linx_websocket_event_handler(struct mg_connection* conn, int ev, voi
                             packet->timestamp = 0;
                             memcpy(packet->payload, wm->data.buf, wm->data.len);
                             
-                            ws_protocol->base.on_incoming_audio(packet, ws_protocol->base.user_data);
+                            ws_protocol->base.callbacks.on_incoming_audio(packet, ws_protocol->base.callbacks.user_data);
                             linx_audio_stream_packet_destroy(packet);
                         }
                     }
@@ -394,8 +394,8 @@ static void linx_websocket_event_handler(struct mg_connection* conn, int ev, voi
             ws_protocol->audio_channel_opened = false;
             ws_protocol->conn = NULL;
             
-            if (ws_protocol->base.on_disconnected) {
-                ws_protocol->base.on_disconnected(ws_protocol->base.user_data);
+            if (ws_protocol->base.callbacks.on_disconnected) {
+                ws_protocol->base.callbacks.on_disconnected(ws_protocol->base.callbacks.user_data);
             }
             break;
         }

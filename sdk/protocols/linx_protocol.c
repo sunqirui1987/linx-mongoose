@@ -57,51 +57,10 @@ const char* linx_protocol_get_session_id(const linx_protocol_t* protocol) {
     return protocol ? protocol->session_id : NULL;
 }
 
-/* 回调函数注册 */
-void linx_protocol_set_on_incoming_audio(linx_protocol_t* protocol, 
-                                         linx_on_incoming_audio_cb_t callback, 
-                                         void* user_data) {
-    if (protocol) {
-        protocol->on_incoming_audio = callback;
-        protocol->user_data = user_data;
-    }
-}
-
-void linx_protocol_set_on_incoming_json(linx_protocol_t* protocol, 
-                                        linx_on_incoming_json_cb_t callback, 
-                                        void* user_data) {
-    if (protocol) {
-        protocol->on_incoming_json = callback;
-        protocol->user_data = user_data;
-    }
-}
-
-
-
-void linx_protocol_set_on_network_error(linx_protocol_t* protocol, 
-                                        linx_on_network_error_cb_t callback, 
-                                        void* user_data) {
-    if (protocol) {
-        protocol->on_network_error = callback;
-        protocol->user_data = user_data;
-    }
-}
-
-void linx_protocol_set_on_connected(linx_protocol_t* protocol, 
-                                    linx_on_connected_cb_t callback, 
-                                    void* user_data) {
-    if (protocol) {
-        protocol->on_connected = callback;
-        protocol->user_data = user_data;
-    }
-}
-
-void linx_protocol_set_on_disconnected(linx_protocol_t* protocol, 
-                                       linx_on_disconnected_cb_t callback, 
-                                       void* user_data) {
-    if (protocol) {
-        protocol->on_disconnected = callback;
-        protocol->user_data = user_data;
+/* 回调函数配置 */
+void linx_protocol_set_callbacks(linx_protocol_t* protocol, const linx_protocol_callbacks_t* callbacks) {
+    if (protocol && callbacks) {
+        protocol->callbacks = *callbacks;
     }
 }
 
@@ -215,8 +174,8 @@ void linx_protocol_set_error(linx_protocol_t* protocol, const char* message) {
     }
     
     protocol->error_occurred = true;
-    if (protocol->on_network_error && message) {
-        protocol->on_network_error(message, protocol->user_data);
+    if (protocol->callbacks.on_network_error && message) {
+        protocol->callbacks.on_network_error(message, protocol->callbacks.user_data);
     }
 }
 
