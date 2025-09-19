@@ -84,8 +84,11 @@ void linx_websocket_protocol_destroy(linx_websocket_protocol_t* ws_protocol) {
         free(ws_protocol->client_id);
     }
     
-    /* Destroy base protocol */
-    linx_protocol_destroy(&ws_protocol->base);
+    /* Clean up base protocol resources directly (avoid recursive call) */
+    if (ws_protocol->base.session_id) {
+        free(ws_protocol->base.session_id);
+        ws_protocol->base.session_id = NULL;
+    }
     
     free(ws_protocol);
 }
@@ -185,32 +188,7 @@ void linx_websocket_event_handler(struct mg_connection* conn, int ev, void* ev_d
     
     switch (ev) {
         case MG_EV_CONNECT: {
-            /* Connection established, but not yet upgraded to WebSocket */
-            /* Set HTTP headers before WebSocket upgrade */
-            if (ws_protocol->auth_token) {
-                char auth_header[512];
-                /* Add "Bearer " prefix if token doesn't have a space */
-                if (strchr(ws_protocol->auth_token, ' ') == NULL) {
-                    snprintf(auth_header, sizeof(auth_header), "Bearer %s", ws_protocol->auth_token);
-                } else {
-                    snprintf(auth_header, sizeof(auth_header), "%s", ws_protocol->auth_token);
-                }
-                mg_http_set_header(conn, "Authorization", auth_header);
-            }
-            
-            if (ws_protocol->version > 0) {
-                char version_str[16];
-                snprintf(version_str, sizeof(version_str), "%d", ws_protocol->version);
-                mg_http_set_header(conn, "Protocol-Version", version_str);
-            }
-            
-            if (ws_protocol->device_id) {
-                mg_http_set_header(conn, "Device-Id", ws_protocol->device_id);
-            }
-            
-            if (ws_protocol->client_id) {
-                mg_http_set_header(conn, "Client-Id", ws_protocol->client_id);
-            }
+            /* Connection established, WebSocket upgrade will happen automatically */
             break;
         }
         
@@ -236,12 +214,16 @@ void linx_websocket_event_handler(struct mg_connection* conn, int ev, void* ev_d
             
             if (wm->flags & WEBSOCKET_OP_TEXT) {
                 /* Text message - parse as JSON */
-                cJSON* json = cJSON_ParseWithLength((const char*)wm->data.ptr, wm->data.len);
+                cJSON* json = cJSON_ParseWithLength((const char*)wm->data.buf, wm->data.len);
                 if (json) {
                     /* Check if it's a server hello message */
                     cJSON* type = cJSON_GetObjectItem(json, "type");
                     if (type && cJSON_IsString(type) && strcmp(type->valuestring, "hello") == 0) {
-                        linx_websocket_parse_server_hello(ws_protocol, json);
+                        char* json_string = cJSON_Print(json);
+                        if (json_string) {
+                            linx_websocket_parse_server_hello(ws_protocol, json_string);
+                            free(json_string);
+                        }
                     }
                     
                     /* Call user callback */
@@ -254,7 +236,7 @@ void linx_websocket_event_handler(struct mg_connection* conn, int ev, void* ev_d
             } else if (wm->flags & WEBSOCKET_OP_BINARY) {
                 /* Binary message - parse as audio data */
                 if (wm->data.len >= sizeof(linx_binary_protocol2_t)) {
-                    linx_binary_protocol2_t* bp2 = (linx_binary_protocol2_t*)wm->data.ptr;
+                    linx_binary_protocol2_t* bp2 = (linx_binary_protocol2_t*)wm->data.buf;
                     uint16_t version = ntohs(bp2->version);
                     uint16_t type = ntohs(bp2->type);
                     uint32_t payload_size = ntohl(bp2->payload_size);
@@ -306,9 +288,42 @@ bool linx_websocket_start(linx_protocol_t* protocol) {
         return false;
     }
     
-    /* Create WebSocket connection */
+    /* Create WebSocket connection with headers */
+    char headers[1024] = "";
+    
+    /* Build headers string */
+    if (ws_protocol->auth_token) {
+        char auth_header[512];
+        /* Add "Bearer " prefix if token doesn't have a space */
+        if (strchr(ws_protocol->auth_token, ' ') == NULL) {
+            snprintf(auth_header, sizeof(auth_header), "Authorization: Bearer %s\r\n", ws_protocol->auth_token);
+        } else {
+            snprintf(auth_header, sizeof(auth_header), "Authorization: %s\r\n", ws_protocol->auth_token);
+        }
+        strncat(headers, auth_header, sizeof(headers) - strlen(headers) - 1);
+    }
+    
+    if (ws_protocol->version > 0) {
+        char version_header[64];
+        snprintf(version_header, sizeof(version_header), "Protocol-Version: %d\r\n", ws_protocol->version);
+        strncat(headers, version_header, sizeof(headers) - strlen(headers) - 1);
+    }
+    
+    if (ws_protocol->device_id) {
+        char device_header[256];
+        snprintf(device_header, sizeof(device_header), "Device-Id: %s\r\n", ws_protocol->device_id);
+        strncat(headers, device_header, sizeof(headers) - strlen(headers) - 1);
+    }
+    
+    if (ws_protocol->client_id) {
+        char client_header[256];
+        snprintf(client_header, sizeof(client_header), "Client-Id: %s\r\n", ws_protocol->client_id);
+        strncat(headers, client_header, sizeof(headers) - strlen(headers) - 1);
+    }
+    
     ws_protocol->conn = mg_ws_connect(&ws_protocol->mgr, ws_protocol->server_url, 
-                                     linx_websocket_event_handler, ws_protocol, NULL);
+                                     linx_websocket_event_handler, ws_protocol, 
+                                     strlen(headers) > 0 ? "%s" : NULL, headers);
     
     if (!ws_protocol->conn) {
         return false;
