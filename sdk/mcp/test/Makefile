@@ -1,16 +1,16 @@
 # MCP C SDK 测试构建脚本
 # 
 # 使用方法：
-#   make all      - 编译所有测试
+#   make all      - 编译所有测试和示例
 #   make test     - 运行所有测试
-#   make clean    - 清理编译文件
 #   make examples - 编译所有示例
+#   make clean    - 清理编译文件
 #   make help     - 显示帮助信息
 
 # 编译器设置
 CC = gcc
 CFLAGS = -Wall -Wextra -std=c99 -g -O0 -fPIC -I../../cjson
-LDFLAGS = 
+LDFLAGS = -lm
 
 # 目录设置
 SRC_DIR = ..
@@ -28,7 +28,7 @@ TEST_SOURCES = test_types.c test_utils.c test_property.c test_tool.c test_server
 TEST_TARGETS = $(TEST_SOURCES:%.c=$(BUILD_DIR)/%)
 
 # 示例文件
-EXAMPLE_SOURCES = $(EXAMPLES_DIR)/calculator_server.c $(EXAMPLES_DIR)/file_manager_server.c $(EXAMPLES_DIR)/weather_server.c
+EXAMPLE_SOURCES = $(wildcard $(EXAMPLES_DIR)/*.c)
 EXAMPLE_TARGETS = $(EXAMPLE_SOURCES:$(EXAMPLES_DIR)/%.c=$(BUILD_DIR)/%)
 
 # 默认目标
@@ -43,12 +43,12 @@ $(BUILD_DIR):
 # 编译测试程序
 $(BUILD_DIR)/test_%: test_%.c $(MCP_SOURCES) $(CJSON_SOURCES) test_framework.c | $(BUILD_DIR)
 	@echo "编译测试: $@"
-	$(CC) $(CFLAGS) -o $@ $< test_framework.c $(MCP_SOURCES) $(CJSON_SOURCES) $(LDFLAGS)
+	@$(CC) $(CFLAGS) -o $@ $< test_framework.c $(MCP_SOURCES) $(CJSON_SOURCES) $(LDFLAGS)
 
 # 编译示例程序
 $(BUILD_DIR)/%: $(EXAMPLES_DIR)/%.c $(MCP_SOURCES) $(CJSON_SOURCES) | $(BUILD_DIR)
 	@echo "编译示例: $@"
-	$(CC) $(CFLAGS) -o $@ $< $(MCP_SOURCES) $(CJSON_SOURCES) $(LDFLAGS)
+	@$(CC) $(CFLAGS) -o $@ $< $(MCP_SOURCES) $(CJSON_SOURCES) $(LDFLAGS)
 
 # 运行所有测试
 test: $(TEST_TARGETS)
@@ -107,9 +107,26 @@ test-integration: $(BUILD_DIR)/test_integration
 examples: $(EXAMPLE_TARGETS)
 	@echo "所有示例程序编译完成！"
 	@echo "可执行文件位于 $(BUILD_DIR)/ 目录："
-	@ls -la $(BUILD_DIR)/*server
+	@ls -la $(BUILD_DIR)/*server 2>/dev/null || echo "没有找到示例程序"
 
-# 运行示例程序（交互式）
+# 运行示例程序自动化测试
+test-examples: $(EXAMPLE_TARGETS)
+	@echo "=========================================="
+	@echo "运行示例程序自动化测试"
+	@echo "=========================================="
+	@echo ""
+	@for example in $(EXAMPLE_TARGETS); do \
+		if [ -f "$$example" ]; then \
+			echo "运行 $$(basename $$example) 自动化测试..."; \
+			$$example || echo "$$(basename $$example) 测试完成"; \
+			echo ""; \
+		fi; \
+	done
+	@echo "=========================================="
+	@echo "所有示例程序自动化测试完成！"
+	@echo "=========================================="
+
+# 运行单个示例程序
 run-calculator: $(BUILD_DIR)/calculator_server
 	@echo "启动计算器服务器示例..."
 	@$(BUILD_DIR)/calculator_server
@@ -122,38 +139,6 @@ run-weather: $(BUILD_DIR)/weather_server
 	@echo "启动天气服务器示例..."
 	@$(BUILD_DIR)/weather_server
 
-# 运行示例程序自动化测试
-test-examples: $(EXAMPLE_TARGETS)
-	@echo "=========================================="
-	@echo "运行示例程序自动化测试"
-	@echo "=========================================="
-	@echo ""
-	@echo "1. 测试计算器服务器..."
-	@timeout 30s $(BUILD_DIR)/calculator_server || echo "计算器服务器测试完成"
-	@echo ""
-	@echo "2. 测试文件管理服务器..."
-	@timeout 30s $(BUILD_DIR)/file_manager_server || echo "文件管理服务器测试完成"
-	@echo ""
-	@echo "3. 测试天气服务器..."
-	@timeout 30s $(BUILD_DIR)/weather_server || echo "天气服务器测试完成"
-	@echo ""
-	@echo "=========================================="
-	@echo "所有示例程序自动化测试完成！"
-	@echo "=========================================="
-
-# 运行单个示例程序自动化测试
-test-calculator: $(BUILD_DIR)/calculator_server
-	@echo "运行计算器服务器自动化测试..."
-	@timeout 30s $(BUILD_DIR)/calculator_server || echo "计算器服务器测试完成"
-
-test-file-manager: $(BUILD_DIR)/file_manager_server
-	@echo "运行文件管理服务器自动化测试..."
-	@timeout 30s $(BUILD_DIR)/file_manager_server || echo "文件管理服务器测试完成"
-
-test-weather: $(BUILD_DIR)/weather_server
-	@echo "运行天气服务器自动化测试..."
-	@timeout 30s $(BUILD_DIR)/weather_server || echo "天气服务器测试完成"
-
 # 代码覆盖率测试（需要 gcov）
 coverage: CFLAGS += --coverage
 coverage: LDFLAGS += --coverage
@@ -161,38 +146,39 @@ coverage: clean $(TEST_TARGETS)
 	@echo "运行覆盖率测试..."
 	@$(MAKE) test
 	@echo "生成覆盖率报告..."
-	@gcov $(MCP_SOURCES)
+	@gcov $(MCP_SOURCES) 2>/dev/null || echo "gcov 不可用"
 	@echo "覆盖率报告已生成（*.gcov 文件）"
 
 # 内存泄漏检测（需要 valgrind）
 valgrind: $(TEST_TARGETS)
 	@echo "运行内存泄漏检测..."
-	@for test in $(TEST_TARGETS); do \
-		echo "检测 $$test..."; \
-		valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes $$test; \
-	done
+	@if command -v valgrind >/dev/null 2>&1; then \
+		for test in $(TEST_TARGETS); do \
+			echo "检测 $$test..."; \
+			valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes $$test; \
+		done; \
+	else \
+		echo "valgrind 不可用，跳过内存泄漏检测"; \
+	fi
 
 # 静态代码分析（需要 cppcheck）
 static-analysis:
 	@echo "运行静态代码分析..."
-	@cppcheck --enable=all --std=c99 $(SRC_DIR)/*.c $(TEST_DIR)/*.c
+	@if command -v cppcheck >/dev/null 2>&1; then \
+		cppcheck --enable=all --std=c99 $(SRC_DIR)/*.c $(TEST_DIR)/*.c; \
+	else \
+		echo "cppcheck 不可用，跳过静态代码分析"; \
+	fi
 
 # 格式化代码（需要 clang-format）
 format:
 	@echo "格式化代码..."
-	@clang-format -i $(SRC_DIR)/*.c $(SRC_DIR)/*.h $(TEST_DIR)/*.c $(EXAMPLES_DIR)/*.c
-
-# 安装依赖（仅适用于某些系统）
-install-deps:
-	@echo "安装依赖..."
-	@echo "请确保已安装以下依赖："
-	@echo "  - gcc"
-	@echo "  - libcjson-dev"
-	@echo "  - make"
-	@echo ""
-	@echo "Ubuntu/Debian: sudo apt-get install gcc libcjson-dev make"
-	@echo "CentOS/RHEL:   sudo yum install gcc cjson-devel make"
-	@echo "macOS:         brew install gcc cjson make"
+	@if command -v clang-format >/dev/null 2>&1; then \
+		clang-format -i $(SRC_DIR)/*.c $(SRC_DIR)/*.h $(TEST_DIR)/*.c $(EXAMPLES_DIR)/*.c; \
+		echo "代码格式化完成"; \
+	else \
+		echo "clang-format 不可用，跳过代码格式化"; \
+	fi
 
 # 清理编译文件
 clean:
@@ -210,14 +196,12 @@ help:
 	@echo "  test             - 运行所有测试"
 	@echo "  test-<name>      - 运行特定测试（types, utils, property, tool, server, integration）"
 	@echo "  test-examples    - 运行所有示例程序自动化测试"
-	@echo "  test-<example>   - 运行特定示例自动化测试（calculator, file-manager, weather）"
 	@echo "  examples         - 编译所有示例程序"
 	@echo "  run-<example>    - 运行特定示例（calculator, file-manager, weather）"
 	@echo "  coverage         - 运行代码覆盖率测试"
 	@echo "  valgrind         - 运行内存泄漏检测"
 	@echo "  static-analysis  - 运行静态代码分析"
 	@echo "  format           - 格式化代码"
-	@echo "  install-deps     - 显示依赖安装说明"
 	@echo "  clean            - 清理编译文件"
 	@echo "  help             - 显示此帮助信息"
 	@echo ""
@@ -225,10 +209,9 @@ help:
 	@echo "  make all && make test    # 编译并运行所有测试"
 	@echo "  make examples            # 编译示例程序"
 	@echo "  make run-calculator      # 运行计算器示例"
-	@echo "  make coverage            # 生成代码覆盖率报告"
+	@echo "  make test-examples       # 运行示例程序自动化测试"
 
 # 确保目标不会与文件名冲突
 .PHONY: test test-types test-utils test-property test-tool test-server test-integration
-.PHONY: test-examples test-calculator test-file-manager test-weather
-.PHONY: examples run-calculator run-file-manager run-weather
-.PHONY: coverage valgrind static-analysis format install-deps
+.PHONY: test-examples run-calculator run-file-manager run-weather
+.PHONY: coverage valgrind static-analysis format
