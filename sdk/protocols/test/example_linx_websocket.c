@@ -448,7 +448,7 @@ int main() {
     printf("2️⃣ 创建 WebSocket 协议实例...\n");
     
     linx_websocket_config_t config = {
-        .url = "ws://xrobo-io.qiniuapi.com/v1/ws/",
+        .url = "ws://114.66.50.145:8000/xiaozhi/v1/",// "ws://xrobo-io.qiniuapi.com/v1/ws/",
         .auth_token = "test-token",
         .device_id = "98:a3:16:f9:d9:34",
         .client_id = "test-client",

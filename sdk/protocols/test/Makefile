@@ -153,14 +153,7 @@ run-websocket: $(EXAMPLE_WEBSOCKET_TARGET)
 	@$(EXAMPLE_WEBSOCKET_TARGET)
 
 # 运行所有示例
-run-all: run-protocol
-	@echo ""
-	@echo "🎯 准备运行 WebSocket 示例..."
-	@if [ "$(MONGOOSE_FOUND)" = "1" ]; then \
-		$(MAKE) run-websocket; \
-	else \
-		echo "⚠️  跳过 WebSocket 示例（mongoose 库未找到）"; \
-	fi
+run-all: run-websocket
 	@echo ""
 	@echo "🎉 所有可用示例运行完成！"
 
@@ -183,11 +176,9 @@ debug:
 	@echo "源文件:"
 	@echo "  PROTOCOL_SOURCES: $(PROTOCOL_SOURCES)"
 	@echo "  CJSON_SOURCES: $(CJSON_SOURCES)"
-	@echo "  EXAMPLE_PROTOCOL_SRC: $(EXAMPLE_PROTOCOL_SRC)"
 	@echo "  EXAMPLE_WEBSOCKET_SRC: $(EXAMPLE_WEBSOCKET_SRC)"
 	@echo ""
 	@echo "目标文件:"
-	@echo "  EXAMPLE_PROTOCOL_TARGET: $(EXAMPLE_PROTOCOL_TARGET)"
 	@echo "  EXAMPLE_WEBSOCKET_TARGET: $(EXAMPLE_WEBSOCKET_TARGET)"
 
 # 显示项目信息
@@ -199,7 +190,6 @@ info:
 	@echo "描述: 演示 linx 协议和 WebSocket 长连接的使用"
 	@echo ""
 	@echo "示例程序:"
-	@echo "  example_linx_protocol   - 基础协议示例"
 	@echo "  example_linx_websocket  - WebSocket 长连接示例"
 	@echo ""
 	@echo "依赖库:"
@@ -224,7 +214,6 @@ help:
 	@echo "  all              - 编译所有示例程序"
 	@echo "  check-deps       - 检查编译依赖"
 	@echo "  install-deps     - 显示依赖安装指南"
-	@echo "  run-protocol     - 编译并运行 linx_protocol 示例"
 	@echo "  run-websocket    - 编译并运行 linx_websocket 示例"
 	@echo "  run-all          - 运行所有可用示例"
 	@echo "  debug            - 显示调试信息"
@@ -236,7 +225,6 @@ help:
 	@echo "  make                    # 编译所有示例"
 	@echo "  make check-deps         # 检查依赖"
 	@echo "  make install-deps       # 查看安装指南"
-	@echo "  make run-protocol       # 运行协议示例"
 	@echo "  make run-websocket      # 运行 WebSocket 示例"
 	@echo "  make run-all            # 运行所有示例"
 	@echo "  make debug              # 查看调试信息"
