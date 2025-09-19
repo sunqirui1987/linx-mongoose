@@ -369,11 +369,13 @@ void run_integration_tests() {
     printf("=== Integration Tests Complete ===\n\n");
 }
 
-#ifdef STANDALONE_TEST
+
 int main() {
     test_init();
     run_integration_tests();
     test_summary();
-    return test_stats.failed > 0 ? 1 : 0;
+     // 检查内存泄漏
+    test_check_memory_leaks();
+    
+    return (g_test_stats.failed_tests > 0) ? 1 : 0;
 }
-#endif

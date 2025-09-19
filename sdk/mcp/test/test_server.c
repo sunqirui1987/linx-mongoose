@@ -18,9 +18,10 @@ void test_send_callback(const char* message) {
 
 // 测试工具回调函数
 mcp_return_value_t test_server_tool_callback(const mcp_property_list_t* properties) {
+    (void)properties; // 避免未使用参数警告
     mcp_return_value_t result;
     result.type = MCP_RETURN_TYPE_STRING;
-    result.string_val = mcp_strdup("server test result");
+    result.value.string_val = mcp_strdup("server test result");
     return result;
 }
 
@@ -33,12 +34,12 @@ mcp_return_value_t echo_tool_callback(const mcp_property_list_t* properties) {
         if (prop && prop->type == MCP_PROPERTY_TYPE_STRING) {
             char* output = malloc(256);
             snprintf(output, 256, "Echo: %s", mcp_property_get_string_value(prop));
-            result.string_val = output;
+            result.value.string_val = output;
         } else {
-            result.string_val = mcp_strdup("No message parameter");
+            result.value.string_val = mcp_strdup("No message parameter");
         }
     } else {
-        result.string_val = mcp_strdup("No parameters");
+        result.value.string_val = mcp_strdup("No parameters");
     }
     
     return result;
@@ -88,7 +89,7 @@ void test_server_tool_management() {
     TEST_ASSERT(server != NULL, "Server creation failed");
     
     // 创建测试工具
-    mcp_tool_t* tool1 = mcp_tool_create("tool1", "First test tool", test_server_tool_callback);
+    mcp_tool_t* tool1 = mcp_tool_create("tool1", "First test tool", NULL, test_server_tool_callback);
     TEST_ASSERT(tool1 != NULL, "Tool1 creation failed");
     
     // 添加工具到服务器
@@ -97,7 +98,7 @@ void test_server_tool_management() {
     TEST_ASSERT(server->tool_count == 1, "Server should have 1 tool");
     
     // 创建第二个工具
-    mcp_tool_t* tool2 = mcp_tool_create("tool2", "Second test tool", echo_tool_callback);
+    mcp_tool_t* tool2 = mcp_tool_create("tool2", "Second test tool", NULL, echo_tool_callback);
     TEST_ASSERT(tool2 != NULL, "Tool2 creation failed");
     
     result = mcp_server_add_tool(server, tool2);
@@ -117,7 +118,7 @@ void test_server_tool_management() {
     TEST_ASSERT(found == NULL, "Nonexistent tool should not be found");
     
     // 测试重复工具名
-    mcp_tool_t* duplicate_tool = mcp_tool_create("tool1", "Duplicate tool", test_server_tool_callback);
+    mcp_tool_t* duplicate_tool = mcp_tool_create("tool1", "Duplicate tool", NULL, test_server_tool_callback);
     result = mcp_server_add_tool(server, duplicate_tool);
     TEST_ASSERT(result == false, "Adding duplicate tool should fail");
     TEST_ASSERT(server->tool_count == 2, "Server should still have 2 tools");
@@ -326,7 +327,7 @@ void test_server_edge_cases() {
         char tool_name[32];
         snprintf(tool_name, sizeof(tool_name), "tool_%d", i);
         
-        mcp_tool_t* tool = mcp_tool_create(tool_name, "Test tool", test_server_tool_callback);
+        mcp_tool_t* tool = mcp_tool_create(tool_name, "Test tool", NULL, test_server_tool_callback);
         bool added = mcp_server_add_tool(server, tool);
         
         if (i < MCP_MAX_TOOLS) {
@@ -375,11 +376,11 @@ void run_server_tests() {
     }
 }
 
-#ifdef STANDALONE_TEST
 int main() {
     test_init();
     run_server_tests();
     test_summary();
-    return test_stats.failed > 0 ? 1 : 0;
+    // 检查内存泄漏
+    test_check_memory_leaks();
+    return g_test_stats.failed_tests > 0 ? 1 : 0;
 }
-#endif
