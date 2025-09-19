@@ -169,6 +169,29 @@ void mcp_free_string(char* str) {
 }
 
 /**
+ * @brief 将整数转换为字符串
+ * @param value 要转换的整数值
+ * @return 转换后的字符串，失败返回NULL
+ */
+char* mcp_itoa(int value) {
+    // 计算所需的缓冲区大小
+    // 最大整数需要11个字符（包括负号和结束符）：-2147483648\0
+    char* buffer = malloc(12);
+    if (!buffer) {
+        return NULL;  // 内存分配失败
+    }
+    
+    // 使用sprintf将整数转换为字符串
+    int result = snprintf(buffer, 12, "%d", value);
+    if (result < 0) {
+        free(buffer);  // 转换失败，释放内存
+        return NULL;
+    }
+    
+    return buffer;
+}
+
+/**
  * @brief 将cJSON对象转换为字符串
  * @param json cJSON对象
  * @return JSON字符串，失败返回NULL

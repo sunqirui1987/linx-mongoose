@@ -42,6 +42,8 @@
         "variant": "cpp",
         "vector": "cpp",
         "cstddef": "cpp",
-        "algorithm": "cpp"
+        "algorithm": "cpp",
+        "test_framework.h": "c",
+        "mcp_types.h": "c"
     }
 }

@@ -80,6 +80,16 @@ char* mcp_strdup(const char* str);
  */
 void mcp_free_string(char* str);
 
+/* 数字转换工具函数 */
+
+/**
+ * @brief 将整数转换为字符串
+ * @param value 要转换的整数值
+ * @return 转换后的字符串，失败返回NULL
+ * @note 返回的字符串需要调用者释放内存
+ */
+char* mcp_itoa(int value);
+
 /* JSON工具函数 */
 
 /**

@@ -50,6 +50,13 @@ void mcp_tool_destroy(mcp_tool_t* tool);
 void mcp_tool_set_user_only(mcp_tool_t* tool, bool user_only);
 
 /**
+ * 检查工具是否仅限用户使用
+ * @param tool 工具指针
+ * @return 如果仅限用户使用返回true，否则返回false
+ */
+bool mcp_tool_is_user_only(const mcp_tool_t* tool);
+
+/**
  * 将工具转换为JSON字符串
  * @param tool 工具指针
  * @return JSON字符串，需要调用者释放内存

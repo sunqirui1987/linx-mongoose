@@ -385,11 +385,23 @@ void mcp_server_handle_tools_call(mcp_server_t* server, int id, const cJSON* par
                 const char* key = arg->string;
                 if (key) {
                     if (cJSON_IsBool(arg)) {
-                        mcp_property_list_add_boolean(properties, key, cJSON_IsTrue(arg));
+                        mcp_property_t* prop = mcp_property_create_boolean(key, cJSON_IsTrue(arg), true);
+                        if (prop) {
+                            mcp_property_list_add(properties, prop);
+                            mcp_property_destroy(prop);
+                        }
                     } else if (cJSON_IsNumber(arg)) {
-                        mcp_property_list_add_integer(properties, key, arg->valueint);
+                        mcp_property_t* prop = mcp_property_create_integer(key, arg->valueint, true, false, 0, 0);
+                        if (prop) {
+                            mcp_property_list_add(properties, prop);
+                            mcp_property_destroy(prop);
+                        }
                     } else if (cJSON_IsString(arg)) {
-                        mcp_property_list_add_string(properties, key, arg->valuestring);
+                        mcp_property_t* prop = mcp_property_create_string(key, arg->valuestring, true);
+                        if (prop) {
+                            mcp_property_list_add(properties, prop);
+                            mcp_property_destroy(prop);
+                        }
                     }
                 }
             }
@@ -511,9 +523,13 @@ char* mcp_server_get_tools_list_json(const mcp_server_t* server, const char* cur
             continue;
         }
         
-        cJSON* tool_json = mcp_tool_to_json(tool);
-        if (tool_json) {
-            cJSON_AddItemToArray(tools_array, tool_json);
+        char* tool_json_str = mcp_tool_to_json(tool);
+        if (tool_json_str) {
+            cJSON* tool_json = cJSON_Parse(tool_json_str);
+            if (tool_json) {
+                cJSON_AddItemToArray(tools_array, tool_json);
+            }
+            free(tool_json_str);
         }
     }
     

@@ -67,14 +67,25 @@ void mcp_tool_set_user_only(mcp_tool_t* tool, bool user_only) {
 }
 
 /**
+ * 检查工具是否仅限用户使用
+ */
+bool mcp_tool_is_user_only(const mcp_tool_t* tool) {
+    if (!tool) {
+        return false;
+    }
+    return tool->user_only;
+}
+
+/**
  * 将工具转换为JSON字符串
+ * @param tool 工具指针
+ * @return JSON字符串，需要调用者释放内存
  */
 char* mcp_tool_to_json(const mcp_tool_t* tool) {
     if (!tool) {
         return NULL;
     }
     
-    // 创建JSON对象
     cJSON* json = cJSON_CreateObject();
     if (!json) {
         return NULL;
@@ -149,11 +160,11 @@ char* mcp_tool_call(const mcp_tool_t* tool, const mcp_property_list_t* propertie
     
     // 根据返回值类型处理结果
     switch (result.type) {
-        case MCP_RETURN_TYPE_BOOLEAN:
+        case MCP_RETURN_TYPE_BOOL:
             cJSON_AddBoolToObject(json, "result", result.value.bool_val);
             break;
             
-        case MCP_RETURN_TYPE_INTEGER:
+        case MCP_RETURN_TYPE_INT:
             cJSON_AddNumberToObject(json, "result", result.value.int_val);
             break;
             
@@ -177,7 +188,7 @@ char* mcp_tool_call(const mcp_tool_t* tool, const mcp_property_list_t* propertie
             if (result.value.image_val) {
                 cJSON* image_json = cJSON_CreateObject();
                 cJSON_AddStringToObject(image_json, "type", "image");
-                cJSON_AddStringToObject(image_json, "data", result.value.image_val->data);
+                cJSON_AddStringToObject(image_json, "data", result.value.image_val->encoded_data);
                 cJSON_AddStringToObject(image_json, "mimeType", result.value.image_val->mime_type);
                 cJSON_AddItemToObject(json, "result", image_json);
             } else {
@@ -205,7 +216,7 @@ char* mcp_tool_call(const mcp_tool_t* tool, const mcp_property_list_t* propertie
  */
 mcp_return_value_t mcp_return_bool(bool value) {
     mcp_return_value_t ret_val;
-    ret_val.type = MCP_RETURN_TYPE_BOOLEAN;
+    ret_val.type = MCP_RETURN_TYPE_BOOL;
     ret_val.value.bool_val = value;
     return ret_val;
 }
@@ -215,7 +226,7 @@ mcp_return_value_t mcp_return_bool(bool value) {
  */
 mcp_return_value_t mcp_return_int(int value) {
     mcp_return_value_t ret_val;
-    ret_val.type = MCP_RETURN_TYPE_INTEGER;
+    ret_val.type = MCP_RETURN_TYPE_INT;
     ret_val.value.int_val = value;
     return ret_val;
 }
@@ -276,8 +287,8 @@ void mcp_return_value_cleanup(mcp_return_value_t* ret_val, mcp_return_type_t typ
             
         case MCP_RETURN_TYPE_IMAGE:
             if (ret_val->value.image_val) {
-                if (ret_val->value.image_val->data) {
-                    free(ret_val->value.image_val->data);
+                if (ret_val->value.image_val->encoded_data) {
+                    free(ret_val->value.image_val->encoded_data);
                 }
                 if (ret_val->value.image_val->mime_type) {
                     free(ret_val->value.image_val->mime_type);
@@ -287,8 +298,8 @@ void mcp_return_value_cleanup(mcp_return_value_t* ret_val, mcp_return_type_t typ
             }
             break;
             
-        case MCP_RETURN_TYPE_BOOLEAN:
-        case MCP_RETURN_TYPE_INTEGER:
+        case MCP_RETURN_TYPE_BOOL:
+        case MCP_RETURN_TYPE_INT:
         default:
             // 这些类型不需要特殊清理
             break;
