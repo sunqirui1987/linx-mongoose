@@ -9,9 +9,6 @@
 /* Protocol vtable for WebSocket implementation */
 static const linx_protocol_vtable_t linx_websocket_vtable = {
     .start = linx_websocket_start,
-    .open_audio_channel = NULL,
-    .close_audio_channel = NULL,
-    .is_audio_channel_opened = NULL,
     .send_audio = linx_websocket_send_audio,
     .send_text = linx_websocket_send_text,
     .destroy = linx_websocket_destroy

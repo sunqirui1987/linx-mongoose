@@ -15,11 +15,9 @@ CJSON_DIR = ../../cjson
 # 源文件
 PROTOCOL_SOURCES = $(PROTOCOLS_DIR)/linx_protocol.c $(PROTOCOLS_DIR)/linx_websocket.c
 CJSON_SOURCES = $(CJSON_DIR)/cJSON.c $(CJSON_DIR)/cJSON_Utils.c
-EXAMPLE_PROTOCOL_SRC = example_linx_protocol.c
 EXAMPLE_WEBSOCKET_SRC = example_linx_websocket.c
 
 # 目标文件
-EXAMPLE_PROTOCOL_TARGET = $(BUILD_DIR)/example_linx_protocol
 EXAMPLE_WEBSOCKET_TARGET = $(BUILD_DIR)/example_linx_websocket
 
 # 包含路径
@@ -75,7 +73,7 @@ else
 endif
 
 # 默认目标
-.PHONY: all clean help run-protocol run-websocket run-all check-deps install-deps debug info
+.PHONY: all clean help run-websocket run-all check-deps install-deps debug info
 
 all: check-deps $(EXAMPLE_WEBSOCKET_TARGET)
 
@@ -131,14 +129,6 @@ install-deps:
 $(BUILD_DIR):
 	@mkdir -p $(BUILD_DIR)
 
-# 编译 linx_protocol 示例
-$(EXAMPLE_PROTOCOL_TARGET): $(EXAMPLE_PROTOCOL_SRC) $(PROTOCOL_SOURCES) $(CJSON_SOURCES) | $(BUILD_DIR)
-	@echo "🔨 编译 linx_protocol 示例..."
-	@echo "源文件: $<"
-	@echo "依赖: $(PROTOCOL_SOURCES) $(CJSON_SOURCES)"
-	$(CC) $(CFLAGS) $(INCLUDES) -o $@ $< $(PROTOCOL_SOURCES) $(CJSON_SOURCES) $(LDFLAGS)
-	@echo "✅ linx_protocol 示例编译完成: $@"
-
 # 编译 linx_websocket 示例
 $(EXAMPLE_WEBSOCKET_TARGET): $(EXAMPLE_WEBSOCKET_SRC) $(PROTOCOL_SOURCES) $(CJSON_SOURCES) | $(BUILD_DIR)
 	@echo "🔨 编译 linx_websocket 示例..."
@@ -153,13 +143,6 @@ $(EXAMPLE_WEBSOCKET_TARGET): $(EXAMPLE_WEBSOCKET_SRC) $(PROTOCOL_SOURCES) $(CJSO
 		$(CC) $(CFLAGS) $(INCLUDES) $(MONGOOSE_CFLAGS) -o $@ $< $(PROTOCOL_SOURCES) $(CJSON_SOURCES) $(LDFLAGS) $(MONGOOSE_LIBS); \
 		echo "✅ linx_websocket 示例编译完成: $@"; \
 	fi
-
-# 运行 linx_protocol 示例
-run-protocol: $(EXAMPLE_PROTOCOL_TARGET)
-	@echo "🚀 运行 linx_protocol 示例..."
-	@echo "================================"
-	@echo "注意: 这是一个基础协议示例，主要用于测试协议框架"
-	@$(EXAMPLE_PROTOCOL_TARGET)
 
 # 运行 linx_websocket 示例
 run-websocket: $(EXAMPLE_WEBSOCKET_TARGET)
