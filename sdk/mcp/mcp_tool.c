@@ -4,6 +4,7 @@
  */
 
 #include "mcp_tool.h"
+#include "../log/linx_log.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -15,22 +16,29 @@ mcp_tool_t* mcp_tool_create(const char* name, const char* description,
                            mcp_property_list_t* properties, mcp_tool_callback_t callback) {
     // 检查参数有效性
     if (!name || !description || !callback) {
+        LOG_ERROR("Invalid parameters: name=%p, description=%p, callback=%p", name, description, callback);
         return NULL;
     }
     
     // 检查名称不能为空字符串
     if (strlen(name) == 0) {
+        LOG_ERROR("Tool name cannot be empty");
         return NULL;
     }
     
     // 检查名称和描述长度
     if (strlen(name) >= MCP_MAX_NAME_LENGTH || strlen(description) >= MCP_MAX_DESCRIPTION_LENGTH) {
+        LOG_ERROR("Tool name or description too long: name_len=%zu, desc_len=%zu", 
+                  strlen(name), strlen(description));
         return NULL;
     }
+    
+    LOG_INFO("Creating tool: '%s'", name);
     
     // 分配内存
     mcp_tool_t* tool = malloc(sizeof(mcp_tool_t));
     if (!tool) {
+        LOG_ERROR("Failed to allocate memory for tool '%s'", name);
         return NULL;
     }
     
@@ -43,15 +51,19 @@ mcp_tool_t* mcp_tool_create(const char* name, const char* description,
     
     // 如果没有提供属性列表，创建一个空的属性列表
     if (properties == NULL) {
+        LOG_DEBUG("Creating empty property list for tool '%s'", name);
         tool->properties = mcp_property_list_create();
         if (!tool->properties) {
+            LOG_ERROR("Failed to create property list for tool '%s'", name);
             free(tool);
             return NULL;
         }
     } else {
         // 创建属性列表的深拷贝，避免所有权问题
+        LOG_DEBUG("Cloning property list for tool '%s'", name);
         tool->properties = mcp_property_list_clone(properties);
         if (!tool->properties) {
+            LOG_ERROR("Failed to clone property list for tool '%s'", name);
             free(tool);
             return NULL;
         }
@@ -60,6 +72,7 @@ mcp_tool_t* mcp_tool_create(const char* name, const char* description,
     tool->callback = callback;
     tool->user_only = false;
     
+    LOG_INFO("Tool '%s' created successfully", name);
     return tool;
 }
 
@@ -68,8 +81,11 @@ mcp_tool_t* mcp_tool_create(const char* name, const char* description,
  */
 void mcp_tool_destroy(mcp_tool_t* tool) {
     if (tool) {
+        LOG_INFO("Destroying tool: '%s'", tool->name);
+        
         // 销毁属性列表
         if (tool->properties) {
+            LOG_DEBUG("Destroying property list for tool '%s'", tool->name);
             mcp_property_list_destroy(tool->properties);
             tool->properties = NULL;  // 防止多次释放
         }
@@ -83,6 +99,10 @@ void mcp_tool_destroy(mcp_tool_t* tool) {
         // 释放工具本身
         free(tool);
         tool = NULL;  // 防止野指针
+        
+        LOG_DEBUG("Tool destroyed successfully");
+    } else {
+        LOG_WARN("Attempted to destroy NULL tool");
     }
 }
 
@@ -175,19 +195,26 @@ char* mcp_tool_to_json(const mcp_tool_t* tool) {
  */
 char* mcp_tool_call(const mcp_tool_t* tool, const mcp_property_list_t* properties) {
     if (!tool || !tool->callback) {
+        LOG_ERROR("Invalid tool or callback: tool=%p, callback=%p", tool, tool ? tool->callback : NULL);
         return NULL;
     }
+    
+    LOG_INFO("Calling tool: '%s'", tool->name);
     
     // 调用工具回调函数
     mcp_return_value_t result = tool->callback(properties);
     
+    LOG_DEBUG("Tool '%s' callback completed, result type: %d", tool->name, result.type);
+    
     // 创建结果JSON对象
     cJSON* json = cJSON_CreateObject();
     if (!json) {
+        LOG_ERROR("Failed to create JSON object for tool '%s' result", tool->name);
         return NULL;
     }
     
     // 根据返回值类型处理结果
+    LOG_DEBUG("Processing result for tool '%s', type: %d", tool->name, result.type);
     switch (result.type) {
         case MCP_RETURN_TYPE_BOOL:
             cJSON_AddBoolToObject(json, "result", result.value.bool_val);
@@ -236,6 +263,13 @@ char* mcp_tool_call(const mcp_tool_t* tool, const mcp_property_list_t* propertie
     
     // 清理返回值
     mcp_return_value_cleanup((mcp_return_value_t*)&result, result.type);
+    
+    if (json_str) {
+        LOG_INFO("Tool '%s' call completed successfully", tool->name);
+        LOG_DEBUG("Tool '%s' result: %s", tool->name, json_str);
+    } else {
+        LOG_ERROR("Failed to serialize result for tool '%s'", tool->name);
+    }
     
     return json_str;
 }

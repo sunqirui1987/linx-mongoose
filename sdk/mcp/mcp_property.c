@@ -5,6 +5,7 @@
 
 #include "mcp_property.h"
 #include "mcp_utils.h"      // 包含工具函数
+#include "../log/linx_log.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -15,12 +16,17 @@
 mcp_property_t* mcp_property_create_boolean(const char* name, bool default_value, bool has_default) {
     // 检查参数有效性
     if (!name || strlen(name) == 0 || strlen(name) >= MCP_MAX_NAME_LENGTH) {
+        LOG_ERROR("Invalid property name: name=%p, length=%zu", name, name ? strlen(name) : 0);
         return NULL;
     }
+    
+    LOG_DEBUG("Creating boolean property: '%s', default=%s, has_default=%s", 
+              name, default_value ? "true" : "false", has_default ? "true" : "false");
     
     // 分配内存
     mcp_property_t* prop = malloc(sizeof(mcp_property_t));
     if (!prop) {
+        LOG_ERROR("Failed to allocate memory for boolean property '%s'", name);
         return NULL;
     }
     
@@ -38,6 +44,7 @@ mcp_property_t* mcp_property_create_boolean(const char* name, bool default_value
         prop->value.bool_val = default_value;
     }
     
+    LOG_INFO("Boolean property '%s' created successfully", name);
     return prop;
 }
 
@@ -58,12 +65,18 @@ mcp_property_t* mcp_property_create_integer(const char* name, int default_value,
     
     // 检查默认值是否在范围内
     if (has_default && has_range && (default_value < min_value || default_value > max_value)) {
+        LOG_ERROR("Default value %d for integer property '%s' is out of range [%d,%d]", 
+                  default_value, name, min_value, max_value);
         return NULL;
     }
+    
+    LOG_DEBUG("Creating integer property: '%s', default=%d, has_default=%s, range=[%d,%d]", 
+              name, default_value, has_default ? "true" : "false", min_value, max_value);
     
     // 分配内存
     mcp_property_t* prop = malloc(sizeof(mcp_property_t));
     if (!prop) {
+        LOG_ERROR("Failed to allocate memory for integer property '%s'", name);
         return NULL;
     }
     
@@ -81,6 +94,7 @@ mcp_property_t* mcp_property_create_integer(const char* name, int default_value,
         prop->value.int_val = default_value;
     }
     
+    LOG_INFO("Integer property '%s' created successfully", name);
     return prop;
 }
 
@@ -90,12 +104,17 @@ mcp_property_t* mcp_property_create_integer(const char* name, int default_value,
 mcp_property_t* mcp_property_create_string(const char* name, const char* default_value, bool has_default) {
     // 检查参数有效性
     if (!name || strlen(name) == 0 || strlen(name) >= MCP_MAX_NAME_LENGTH) {
+        LOG_ERROR("Invalid property name: name=%p, length=%zu", name, name ? strlen(name) : 0);
         return NULL;
     }
+    
+    LOG_DEBUG("Creating string property: '%s', has_default=%s", 
+              name, has_default ? "true" : "false");
     
     // 分配内存
     mcp_property_t* prop = malloc(sizeof(mcp_property_t));
     if (!prop) {
+        LOG_ERROR("Failed to allocate memory for string property '%s'", name);
         return NULL;
     }
     
@@ -113,11 +132,13 @@ mcp_property_t* mcp_property_create_string(const char* name, const char* default
     if (has_default && default_value) {
         prop->value.string_val = mcp_strdup(default_value);
         if (!prop->value.string_val) {
+            LOG_ERROR("Failed to duplicate default string value for property '%s'", name);
             free(prop);
             return NULL;
         }
     }
     
+    LOG_INFO("String property '%s' created successfully", name);
     return prop;
 }
 
@@ -268,49 +289,55 @@ char* mcp_property_to_json(const mcp_property_t* prop) {
 }
 
 /**
- * 销毁属性并释放内存
+ * 销毁属性
  */
 void mcp_property_destroy(mcp_property_t* prop) {
-    if (!prop) {
-        return;
+    if (prop) {
+        LOG_DEBUG("Destroying property: '%s' (type=%d)", prop->name, prop->type);
+        
+        // 如果是字符串类型，释放字符串内存
+        if (prop->type == MCP_PROPERTY_TYPE_STRING && prop->value.string_val) {
+            free(prop->value.string_val);
+            prop->value.string_val = NULL;
+        }
+        
+        // 释放属性内存
+        free(prop);
+        prop = NULL;
+        
+        LOG_DEBUG("Property destroyed successfully");
+    } else {
+        LOG_WARN("Attempted to destroy NULL property");
     }
-    
-    // 释放字符串值
-    if (prop->type == MCP_PROPERTY_TYPE_STRING && prop->value.string_val) {
-        free(prop->value.string_val);
-        prop->value.string_val = NULL;  // 防止多次释放
-    }
-    
-    // 清理属性状态
-    memset(prop->name, 0, sizeof(prop->name));
-    prop->type = 0;
-    prop->has_default_value = false;
-    prop->has_range = false;
-    
-    // 释放属性本身
-    free(prop);
 }
 
 /**
  * 创建属性列表
  */
 mcp_property_list_t* mcp_property_list_create(void) {
-    mcp_property_list_t* list = malloc(sizeof(mcp_property_list_t));
-    if (!list) {
-        return NULL;
-    }
+    LOG_DEBUG("Creating property list");
     
-    list->count = 0;
+    mcp_property_list_t* list = malloc(sizeof(mcp_property_list_t));
+    if (list) {
+        list->count = 0;
+        memset(list->properties, 0, sizeof(list->properties));
+        LOG_INFO("Property list created successfully");
+    } else {
+        LOG_ERROR("Failed to allocate memory for property list");
+    }
     return list;
 }
 
 /**
- * 销毁属性列表并释放内存
+ * 销毁属性列表
  */
 void mcp_property_list_destroy(mcp_property_list_t* list) {
     if (!list) {
+        LOG_WARN("Attempted to destroy NULL property list");
         return;
     }
+    
+    LOG_INFO("Destroying property list with %zu properties", list->count);
     
     // 销毁所有属性
     for (size_t i = 0; i < list->count; i++) {
@@ -327,11 +354,11 @@ void mcp_property_list_destroy(mcp_property_list_t* list) {
     list->count = 0;
     memset(list->properties, 0, sizeof(list->properties));
     
-    // 释放列表本身
-    printf("[MCP] mcp_property_list_destroy()\n");
+    // 释放列表内存
     free(list);
-    printf("[MCP] mcp_property_list_destroy() list = NULL\n");
     list = NULL;
+    
+    LOG_DEBUG("Property list destroyed successfully");
 }
 
 /**
@@ -377,15 +404,19 @@ mcp_property_list_t* mcp_property_list_clone(const mcp_property_list_t* list) {
  * 向属性列表添加属性
  */
 bool mcp_property_list_add(mcp_property_list_t* list, const mcp_property_t* prop) {
-    // 检查参数有效性
     if (!list || !prop || list->count >= MCP_MAX_PROPERTIES) {
+        LOG_ERROR("Invalid parameters or property limit reached: list=%p, prop=%p, count=%zu/%d", 
+                  list, prop, list ? list->count : 0, MCP_MAX_PROPERTIES);
         return false;
     }
     
-    // 检查是否已存在同名属性
+    LOG_DEBUG("Adding property '%s' to list (current count: %zu)", prop->name, list->count);
+    
+    // 检查重复的属性名称
     for (size_t i = 0; i < list->count; i++) {
         if (strcmp(list->properties[i].name, prop->name) == 0) {
-            return false;  // 属性名已存在
+            LOG_WARN("Property with name '%s' already exists in list", prop->name);
+            return false;
         }
     }
     
@@ -397,11 +428,15 @@ bool mcp_property_list_add(mcp_property_list_t* list, const mcp_property_t* prop
     if (prop->type == MCP_PROPERTY_TYPE_STRING && prop->value.string_val) {
         dest->value.string_val = mcp_strdup(prop->value.string_val);
         if (!dest->value.string_val) {
+            LOG_ERROR("Failed to duplicate string value for property '%s'", prop->name);
             return false;
         }
     }
     
     list->count++;
+    
+    LOG_INFO("Property '%s' added successfully to list (total properties: %zu)", 
+             prop->name, list->count);
     return true;
 }
 

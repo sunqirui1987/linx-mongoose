@@ -14,6 +14,7 @@
 #include "mcp_property.h"   // MCP属性管理
 #include "mcp_tool.h"       // MCP工具管理
 #include "mcp_server.h"     // MCP服务器实现
+#include "../log/linx_log.h" // 日志模块
 
 #ifdef __cplusplus
 extern "C" {

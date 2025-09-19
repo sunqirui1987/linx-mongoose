@@ -5,6 +5,7 @@
 
 #include "mcp_server.h"
 #include "mcp.h"        // 包含MCP协议版本定义
+#include "../log/linx_log.h"  // 日志模块
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -17,11 +18,15 @@ static mcp_send_message_callback_t g_send_callback = NULL;
  */
 mcp_server_t* mcp_server_create(const char* server_name, const char* server_version) {
     if (!server_name || !server_version) {
+        LOG_ERROR("Invalid parameters: server_name=%p, server_version=%p", server_name, server_version);
         return NULL;
     }
     
+    LOG_INFO("Creating MCP server: name='%s', version='%s'", server_name, server_version);
+    
     mcp_server_t* server = malloc(sizeof(mcp_server_t));
     if (!server) {
+        LOG_ERROR("Failed to allocate memory for MCP server");
         return NULL;
     }
     
@@ -40,6 +45,7 @@ mcp_server_t* mcp_server_create(const char* server_name, const char* server_vers
     /* 初始化能力回调结构体 */
     memset(&server->capability_callbacks, 0, sizeof(server->capability_callbacks));
     
+    LOG_DEBUG("MCP server created successfully: %p", server);
     return server;
 }
 
@@ -48,9 +54,12 @@ mcp_server_t* mcp_server_create(const char* server_name, const char* server_vers
  */
 void mcp_server_destroy(mcp_server_t* server) {
     if (server) {
+        LOG_INFO("Destroying MCP server: %p (name='%s', tools=%zu)", server, server->server_name, server->tool_count);
+        
         // 销毁所有工具
         for (size_t i = 0; i < server->tool_count; i++) {
             if (server->tools[i]) {
+                LOG_DEBUG("Destroying tool %zu: '%s'", i, server->tools[i]->name);
                 mcp_tool_destroy(server->tools[i]);
                 server->tools[i] = NULL;  // 防止多次释放
             }
@@ -60,6 +69,10 @@ void mcp_server_destroy(mcp_server_t* server) {
         memset(server->tools, 0, sizeof(server->tools));
         free(server);
         server = NULL;
+        
+        LOG_DEBUG("MCP server destroyed successfully");
+    } else {
+        LOG_WARN("Attempted to destroy NULL MCP server");
     }
 }
 
@@ -68,18 +81,26 @@ void mcp_server_destroy(mcp_server_t* server) {
  */
 bool mcp_server_add_tool(mcp_server_t* server, mcp_tool_t* tool) {
     if (!server || !tool || server->tool_count >= MCP_MAX_TOOLS) {
+        LOG_ERROR("Invalid parameters or tool limit reached: server=%p, tool=%p, count=%zu/%d", 
+                  server, tool, server ? server->tool_count : 0, MCP_MAX_TOOLS);
         return false;
     }
+    
+    LOG_DEBUG("Adding tool '%s' to server '%s'", tool->name, server->server_name);
     
     /* 检查重复的工具名称 */
     for (size_t i = 0; i < server->tool_count; i++) {
         if (strcmp(server->tools[i]->name, tool->name) == 0) {
+            LOG_WARN("Tool with name '%s' already exists in server", tool->name);
             return false;
         }
     }
     
     server->tools[server->tool_count] = tool;
     server->tool_count++;
+    
+    LOG_INFO("Tool '%s' added successfully to server '%s' (total tools: %zu)", 
+             tool->name, server->server_name, server->tool_count);
     return true;
 }
 
@@ -168,23 +189,31 @@ void mcp_server_parse_message(mcp_server_t* server, const char* message) {
  */
 void mcp_server_parse_json_message(mcp_server_t* server, const cJSON* json) {
     if (!server || !json) {
+        LOG_ERROR("Invalid parameters: server=%p, json=%p", server, json);
         return;
     }
+    
+    LOG_DEBUG("Parsing JSON message for server '%s'", server->server_name);
     
     /* 检查JSONRPC版本 */
     const cJSON* version = cJSON_GetObjectItem(json, "jsonrpc");
     if (!version || !cJSON_IsString(version) || strcmp(version->valuestring, "2.0") != 0) {
+        LOG_WARN("Invalid or missing JSONRPC version");
         return;
     }
     
     /* 检查方法名 */
     const cJSON* method = cJSON_GetObjectItem(json, "method");
     if (!method || !cJSON_IsString(method)) {
+        LOG_WARN("Invalid or missing method name");
         return;
     }
     
+    LOG_DEBUG("Processing method: '%s'", method->valuestring);
+    
     /* 跳过通知消息 */
     if (strstr(method->valuestring, "notifications") == method->valuestring) {
+        LOG_DEBUG("Skipping notification message: '%s'", method->valuestring);
         return;
     }
     
@@ -204,6 +233,8 @@ void mcp_server_parse_json_message(mcp_server_t* server, const cJSON* json) {
     const char* method_str = method->valuestring;
     
     // 根据方法名分发处理
+    LOG_INFO("Handling method '%s' with ID %d", method_str, id_int);
+    
     if (strcmp(method_str, "initialize") == 0) {
         mcp_server_handle_initialize(server, id_int, params);
     } else if (strcmp(method_str, "tools/list") == 0) {
@@ -211,6 +242,7 @@ void mcp_server_parse_json_message(mcp_server_t* server, const cJSON* json) {
     } else if (strcmp(method_str, "tools/call") == 0) {
         mcp_server_handle_tools_call(server, id_int, params);
     } else {
+        LOG_WARN("Method not implemented: %s", method_str);
         char error_msg[256];
         snprintf(error_msg, sizeof(error_msg), "Method not implemented: %s", method_str);
         mcp_server_reply_error(id_int, error_msg);

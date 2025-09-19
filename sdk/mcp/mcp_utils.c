@@ -6,6 +6,7 @@
  * 字符串操作和JSON处理等功能。
  */
 #include "mcp_utils.h"
+#include "../log/linx_log.h"
 #include <stdlib.h>        // 内存管理函数
 #include <string.h>        // 字符串操作函数
 #include <stdio.h>         // 标准输入输出函数
@@ -26,14 +27,20 @@ static const char base64_chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqr
 char* mcp_base64_encode(const char* data, size_t data_len) {
     // 参数验证
     if (!data) {
+        LOG_ERROR("Invalid data parameter for base64 encoding");
         return NULL;
     }
+    
+    LOG_DEBUG("Base64 encoding %zu bytes of data", data_len);
     
     // 处理空数据的情况
     if (data_len == 0) {
         char* empty_result = malloc(1);
         if (empty_result) {
             empty_result[0] = '\0';
+            LOG_DEBUG("Base64 encoding completed for empty data");
+        } else {
+            LOG_ERROR("Failed to allocate memory for empty base64 result");
         }
         return empty_result;
     }
@@ -42,6 +49,7 @@ char* mcp_base64_encode(const char* data, size_t data_len) {
     size_t encoded_len = 4 * ((data_len + 2) / 3);
     char* encoded = malloc(encoded_len + 1);  // +1为字符串结束符
     if (!encoded) {
+        LOG_ERROR("Failed to allocate %zu bytes for base64 encoding", encoded_len + 1);
         return NULL;  // 内存分配失败
     }
     
@@ -69,6 +77,8 @@ char* mcp_base64_encode(const char* data, size_t data_len) {
     }
     
     encoded[encoded_len] = '\0';  // 添加字符串结束符
+    
+    LOG_INFO("Base64 encoding completed successfully: %zu bytes -> %zu characters", data_len, encoded_len);
     return encoded;
 }
 
@@ -82,25 +92,37 @@ char* mcp_base64_encode(const char* data, size_t data_len) {
 mcp_image_content_t* mcp_image_content_create(const char* mime_type, const char* data, size_t data_len) {
     // 参数验证
     if (!mime_type || !data || data_len == 0) {
+        LOG_ERROR("Invalid parameters for image content creation: mime_type=%p, data=%p, data_len=%zu", mime_type, data, data_len);
         return NULL;
     }
+    
+    LOG_DEBUG("Creating image content: mime_type='%s', data_len=%zu", mime_type, data_len);
     
     // 分配图像内容结构体内存
     mcp_image_content_t* image = malloc(sizeof(mcp_image_content_t));
     if (!image) {
-        return NULL;  // 内存分配失败
-    }
-    
-    // 复制MIME类型并编码图像数据
-    image->mime_type = mcp_strdup(mime_type);
-    image->encoded_data = mcp_base64_encode(data, data_len);
-    
-    // 检查内存分配是否成功
-    if (!image->mime_type || !image->encoded_data) {
-        mcp_image_content_destroy(image);  // 清理已分配的内存
+        LOG_ERROR("Failed to allocate memory for image content structure");
         return NULL;
     }
     
+    // 对数据进行Base64编码
+    image->encoded_data = mcp_base64_encode(data, data_len);
+    if (!image->encoded_data) {
+        LOG_ERROR("Failed to base64 encode image data");
+        free(image);
+        return NULL;
+    }
+    
+    // 复制MIME类型
+    image->mime_type = mcp_strdup(mime_type);
+    if (!image->mime_type) {
+        LOG_ERROR("Failed to duplicate MIME type string");
+        free(image->encoded_data);
+        free(image);
+        return NULL;
+    }
+    
+    LOG_INFO("Image content created successfully: mime_type='%s', data_len=%zu", mime_type, data_len);
     return image;
 }
 
@@ -109,25 +131,29 @@ mcp_image_content_t* mcp_image_content_create(const char* mime_type, const char*
  * @param image 要销毁的图像内容对象
  */
 void mcp_image_content_destroy(mcp_image_content_t* image) {
-    if (image) {
-        // 释放MIME类型字符串
-        if (image->mime_type) {
-            free(image->mime_type);
-            image->mime_type = NULL;  // 防止多次释放
-        }
-        
-        // 释放编码数据字符串
-        if (image->encoded_data) {
-            free(image->encoded_data);
-            image->encoded_data = NULL;  // 防止多次释放
-        }
-        
-        // 清理结构体状态
-        memset(image, 0, sizeof(mcp_image_content_t));
-        
-        // 释放结构体本身
-        free(image);
+    if (!image) {
+        LOG_WARN("Attempted to destroy NULL image content");
+        return;  // 空指针检查
     }
+    
+    LOG_DEBUG("Destroying image content: mime_type='%s'", image->mime_type ? image->mime_type : "NULL");
+    
+    // 释放MIME类型字符串
+    if (image->mime_type) {
+        free(image->mime_type);
+        image->mime_type = NULL;
+    }
+    
+    // 释放编码数据字符串
+    if (image->encoded_data) {
+        free(image->encoded_data);
+        image->encoded_data = NULL;
+    }
+    
+    // 释放结构体本身
+    free(image);
+    
+    LOG_DEBUG("Image content destroyed successfully");
 }
 
 /**
@@ -136,26 +162,41 @@ void mcp_image_content_destroy(mcp_image_content_t* image) {
  * @return JSON字符串，失败返回NULL
  */
 char* mcp_image_content_to_json(const mcp_image_content_t* image) {
-    if (!image) {
+    if (!image || !image->mime_type || !image->encoded_data) {
+        LOG_ERROR("Invalid image content for JSON conversion: image=%p, mime_type=%p, encoded_data=%p", 
+                  image, image ? image->mime_type : NULL, image ? image->encoded_data : NULL);
         return NULL;
     }
+    
+    LOG_DEBUG("Converting image content to JSON: mime_type='%s'", image->mime_type);
     
     // 创建JSON对象
     cJSON* json = cJSON_CreateObject();
     if (!json) {
-        return NULL;  // JSON对象创建失败
+        LOG_ERROR("Failed to create JSON object for image content");
+        return NULL;
     }
     
-    // 添加JSON字段
-    cJSON_AddStringToObject(json, "type", "image");           // 内容类型
-    cJSON_AddStringToObject(json, "mimeType", image->mime_type);  // MIME类型
-    cJSON_AddStringToObject(json, "data", image->encoded_data);   // Base64编码数据
+    // 添加type字段
+    cJSON_AddStringToObject(json, "type", "image");
     
-    // 将JSON对象转换为字符串
-    char* json_str = cJSON_PrintUnformatted(json);
-    cJSON_Delete(json);  // 释放JSON对象
+    // 添加mimeType字段
+    cJSON_AddStringToObject(json, "mimeType", image->mime_type);
     
-    return json_str;
+    // 添加data字段
+    cJSON_AddStringToObject(json, "data", image->encoded_data);
+    
+    // 转换为字符串（使用紧凑格式）
+    char* json_string = cJSON_PrintUnformatted(json);
+    cJSON_Delete(json);
+    
+    if (json_string) {
+        LOG_INFO("Image content converted to JSON successfully: mime_type='%s'", image->mime_type);
+    } else {
+        LOG_ERROR("Failed to convert JSON object to string");
+    }
+    
+    return json_string;
 }
 
 /**
@@ -165,16 +206,23 @@ char* mcp_image_content_to_json(const mcp_image_content_t* image) {
  */
 char* mcp_strdup(const char* str) {
     if (!str) {
+        LOG_ERROR("Cannot duplicate NULL string");
         return NULL;
     }
     
     // 计算字符串长度并分配内存
     size_t len = strlen(str);
+    LOG_DEBUG("Duplicating string of length %zu", len);
+    
     char* copy = malloc(len + 1);  // +1为字符串结束符
-    if (copy) {
-        // 复制字符串内容（包括结束符）
-        memcpy(copy, str, len + 1);
+    if (!copy) {
+        LOG_ERROR("Failed to allocate %zu bytes for string duplication", len + 1);
+        return NULL;
     }
+    
+    // 复制字符串内容（包括结束符）
+    memcpy(copy, str, len + 1);
+    LOG_DEBUG("String duplication completed successfully");
     return copy;
 }
 
@@ -184,7 +232,10 @@ char* mcp_strdup(const char* str) {
  */
 void mcp_free_string(char* str) {
     if (str) {
-        free(str);  // 释放字符串内存
+        LOG_DEBUG("Freeing string memory");
+        free(str);
+    } else {
+        LOG_WARN("Attempted to free NULL string");
     }
 }
 
@@ -194,20 +245,25 @@ void mcp_free_string(char* str) {
  * @return 转换后的字符串，失败返回NULL
  */
 char* mcp_itoa(int value) {
+    LOG_DEBUG("Converting integer %d to string", value);
+    
     // 计算所需的缓冲区大小
     // 最大整数需要11个字符（包括负号和结束符）：-2147483648\0
     char* buffer = malloc(12);
     if (!buffer) {
+        LOG_ERROR("Failed to allocate 12 bytes for integer to string conversion");
         return NULL;  // 内存分配失败
     }
     
     // 使用sprintf将整数转换为字符串
     int result = snprintf(buffer, 12, "%d", value);
     if (result < 0) {
+        LOG_ERROR("Failed to convert integer %d to string", value);
         free(buffer);  // 转换失败，释放内存
         return NULL;
     }
     
+    LOG_DEBUG("Integer %d converted to string successfully", value);
     return buffer;
 }
 
@@ -218,8 +274,18 @@ char* mcp_itoa(int value) {
  */
 char* mcp_json_to_string(const cJSON* json) {
     if (!json) {
+        LOG_ERROR("Cannot convert NULL JSON to string");
         return NULL;
     }
-    // 将JSON对象转换为紧凑格式的字符串
-    return cJSON_PrintUnformatted(json);
+    
+    LOG_DEBUG("Converting JSON object to string");
+    
+    char* json_string = cJSON_PrintUnformatted(json);
+    if (json_string) {
+        LOG_DEBUG("JSON object converted to string successfully");
+    } else {
+        LOG_ERROR("Failed to convert JSON object to string");
+    }
+    
+    return json_string;
 }

@@ -9,12 +9,13 @@
 
 # 编译器设置
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c99 -g -O0 -fPIC -I../../cjson
+CFLAGS = -Wall -Wextra -std=c99 -g -O0 -fPIC -I../../cjson -I../../log
 LDFLAGS = -lm
 
 # 目录设置
 SRC_DIR = ..
 CJSON_DIR = ../../cjson
+LOG_DIR = ../../log
 TEST_DIR = .
 EXAMPLES_DIR = examples
 BUILD_DIR = build
@@ -22,6 +23,7 @@ BUILD_DIR = build
 # 源文件
 MCP_SOURCES = $(SRC_DIR)/mcp_utils.c $(SRC_DIR)/mcp_property.c $(SRC_DIR)/mcp_tool.c $(SRC_DIR)/mcp_server.c
 CJSON_SOURCES = $(CJSON_DIR)/cJSON.c $(CJSON_DIR)/cJSON_Utils.c
+LOG_SOURCES = $(LOG_DIR)/linx_log.c
 
 # 测试文件
 TEST_SOURCES = test_types.c test_utils.c test_property.c test_tool.c test_server.c test_integration.c
@@ -41,14 +43,14 @@ $(BUILD_DIR):
 	@mkdir -p $(BUILD_DIR)
 
 # 编译测试程序
-$(BUILD_DIR)/test_%: test_%.c $(MCP_SOURCES) $(CJSON_SOURCES) test_framework.c | $(BUILD_DIR)
+$(BUILD_DIR)/test_%: test_%.c $(MCP_SOURCES) $(CJSON_SOURCES) $(LOG_SOURCES) test_framework.c | $(BUILD_DIR)
 	@echo "编译测试: $@"
-	@$(CC) $(CFLAGS) -o $@ $< test_framework.c $(MCP_SOURCES) $(CJSON_SOURCES) $(LDFLAGS)
+	@$(CC) $(CFLAGS) -o $@ $< test_framework.c $(MCP_SOURCES) $(CJSON_SOURCES) $(LOG_SOURCES) $(LDFLAGS)
 
 # 编译示例程序
-$(BUILD_DIR)/%: $(EXAMPLES_DIR)/%.c $(MCP_SOURCES) $(CJSON_SOURCES) | $(BUILD_DIR)
+$(BUILD_DIR)/%: $(EXAMPLES_DIR)/%.c $(MCP_SOURCES) $(CJSON_SOURCES) $(LOG_SOURCES) | $(BUILD_DIR)
 	@echo "编译示例: $@"
-	@$(CC) $(CFLAGS) -o $@ $< $(MCP_SOURCES) $(CJSON_SOURCES) $(LDFLAGS)
+	@$(CC) $(CFLAGS) -o $@ $< $(MCP_SOURCES) $(CJSON_SOURCES) $(LOG_SOURCES) $(LDFLAGS)
 
 # 运行所有测试
 test: $(TEST_TARGETS)
@@ -146,7 +148,7 @@ coverage: clean $(TEST_TARGETS)
 	@echo "运行覆盖率测试..."
 	@$(MAKE) test
 	@echo "生成覆盖率报告..."
-	@gcov $(MCP_SOURCES) 2>/dev/null || echo "gcov 不可用"
+	@gcov $(MCP_SOURCES) $(LOG_SOURCES) 2>/dev/null || echo "gcov 不可用"
 	@echo "覆盖率报告已生成（*.gcov 文件）"
 
 # 内存泄漏检测（需要 valgrind）
