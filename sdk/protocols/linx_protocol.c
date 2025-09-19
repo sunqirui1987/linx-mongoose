@@ -16,11 +16,9 @@ static uint64_t get_current_time_ms(void) {
 /* 协议管理函数 */
 void linx_protocol_init(linx_protocol_t* protocol, const linx_protocol_vtable_t* vtable) {
     if (!protocol || !vtable) {
-        LOG_ERROR("协议初始化失败: 无效的参数 (protocol=%p, vtable=%p)", protocol, vtable);
         return;
     }
     
-    LOG_DEBUG("开始初始化协议实例");
     memset(protocol, 0, sizeof(linx_protocol_t));
     protocol->vtable = vtable;
     protocol->server_sample_rate = 24000;      // 默认采样率24kHz
@@ -28,32 +26,22 @@ void linx_protocol_init(linx_protocol_t* protocol, const linx_protocol_vtable_t*
     protocol->error_occurred = false;
     protocol->session_id = NULL;
     protocol->last_incoming_time = get_current_time_ms();
-    
-    LOG_INFO("协议初始化成功 - 采样率: %d Hz, 帧持续时间: %d ms", 
-             protocol->server_sample_rate, protocol->server_frame_duration);
 }
 
 void linx_protocol_destroy(linx_protocol_t* protocol) {
     if (!protocol) {
-        LOG_WARN("尝试销毁空的协议实例");
         return;
     }
     
-    LOG_DEBUG("开始销毁协议实例");
-    
     // 释放会话ID内存
     if (protocol->session_id) {
-        LOG_DEBUG("释放会话ID: %s", protocol->session_id);
         protocol->session_id = NULL;
     }
     
     // 调用具体协议的销毁函数
     if (protocol->vtable && protocol->vtable->destroy) {
-        LOG_DEBUG("调用协议特定的销毁函数");
         protocol->vtable->destroy(protocol);
     }
-    
-    LOG_INFO("协议实例销毁完成");
 }
 
 /* 获取器函数 */
@@ -120,43 +108,16 @@ void linx_protocol_set_on_disconnected(linx_protocol_t* protocol,
 /* 协议操作函数 */
 bool linx_protocol_start(linx_protocol_t* protocol) {
     if (!protocol || !protocol->vtable || !protocol->vtable->start) {
-        LOG_ERROR("协议启动失败: 无效的协议实例或vtable");
         return false;
     }
-    
-    LOG_INFO("开始启动协议");
-    bool result = protocol->vtable->start(protocol);
-    
-    if (result) {
-        LOG_INFO("协议启动成功");
-    } else {
-        LOG_ERROR("协议启动失败");
-    }
-    
-    return result;
+    return protocol->vtable->start(protocol);
 }
 
 bool linx_protocol_send_audio(linx_protocol_t* protocol, linx_audio_stream_packet_t* packet) {
     if (!protocol || !protocol->vtable || !protocol->vtable->send_audio) {
-        LOG_ERROR("音频发送失败: 无效的协议实例或vtable");
         return false;
     }
-    
-    if (!packet) {
-        LOG_ERROR("音频发送失败: 音频包为空");
-        return false;
-    }
-    
-    LOG_DEBUG("发送音频包 - 采样率: %d, 帧持续时间: %d, 载荷大小: %zu", 
-              packet->sample_rate, packet->frame_duration, packet->payload_size);
-    
-    bool result = protocol->vtable->send_audio(protocol, packet);
-    
-    if (!result) {
-        LOG_WARN("音频包发送失败");
-    }
-    
-    return result;
+    return protocol->vtable->send_audio(protocol, packet);
 }
 
 /* 高级消息发送函数 */
@@ -250,45 +211,28 @@ void linx_protocol_send_mcp_message(linx_protocol_t* protocol, const char* messa
 /* 工具函数 */
 void linx_protocol_set_error(linx_protocol_t* protocol, const char* message) {
     if (!protocol) {
-        LOG_ERROR("设置协议错误失败: 协议实例为空");
         return;
     }
     
-    LOG_ERROR("协议错误: %s", message ? message : "未知错误");
     protocol->error_occurred = true;
-    
     if (protocol->on_network_error && message) {
-        LOG_DEBUG("调用网络错误回调函数");
         protocol->on_network_error(message, protocol->user_data);
     }
 }
 
 bool linx_protocol_is_timeout(const linx_protocol_t* protocol) {
     if (!protocol) {
-        LOG_WARN("检查超时失败: 协议实例为空");
         return false;
     }
     
     uint64_t current_time = get_current_time_ms();
-    uint64_t elapsed = current_time - protocol->last_incoming_time;
-    bool is_timeout = elapsed > LINX_TIMEOUT_MS;
-    
-    if (is_timeout) {
-        LOG_WARN("协议超时检测: 已超时 %llu ms (阈值: %d ms)", elapsed, LINX_TIMEOUT_MS);
-    } else {
-        LOG_DEBUG("协议超时检测: 正常 (%llu ms)", elapsed);
-    }
-    
-    return is_timeout;
+    return (current_time - protocol->last_incoming_time) > LINX_TIMEOUT_MS;
 }
 
 /* 音频数据包管理 */
 linx_audio_stream_packet_t* linx_audio_stream_packet_create(size_t payload_size) {
-    LOG_DEBUG("创建音频数据包 - 载荷大小: %zu", payload_size);
-    
     linx_audio_stream_packet_t* packet = malloc(sizeof(linx_audio_stream_packet_t));
     if (!packet) {
-        LOG_ERROR("音频数据包创建失败: 内存分配失败");
         return NULL;
     }
     
@@ -298,30 +242,23 @@ linx_audio_stream_packet_t* linx_audio_stream_packet_create(size_t payload_size)
     if (payload_size > 0) {
         packet->payload = malloc(payload_size);
         if (!packet->payload) {
-            LOG_ERROR("音频数据包载荷分配失败: 大小 %zu", payload_size);
             free(packet);
             return NULL;
         }
         packet->payload_size = payload_size;
     }
     
-    LOG_DEBUG("音频数据包创建成功");
     return packet;
 }
 
 void linx_audio_stream_packet_destroy(linx_audio_stream_packet_t* packet) {
     if (!packet) {
-        LOG_DEBUG("尝试销毁空的音频数据包");
         return;
     }
-    
-    LOG_DEBUG("销毁音频数据包 - 载荷大小: %zu", packet->payload_size);
     
     // 释放载荷内存
     if (packet->payload) {
         free(packet->payload);
     }
     free(packet);
-    
-    LOG_DEBUG("音频数据包销毁完成");
 }
