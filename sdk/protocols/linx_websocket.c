@@ -214,43 +214,106 @@ void linx_websocket_event_handler(struct mg_connection* conn, int ev, void* ev_d
             
             if (wm->flags & WEBSOCKET_OP_TEXT) {
                 /* Text message - parse as JSON */
+                printf("[WebSocket] Received text message (length: %zu)\n", wm->data.len);
+                
                 cJSON* json = cJSON_ParseWithLength((const char*)wm->data.buf, wm->data.len);
-                if (json) {
-                    /* Check if it's a server hello message */
-                    cJSON* type = cJSON_GetObjectItem(json, "type");
-                    if (type && cJSON_IsString(type) && strcmp(type->valuestring, "hello") == 0) {
-                        char* json_string = cJSON_Print(json);
-                        if (json_string) {
-                            linx_websocket_parse_server_hello(ws_protocol, json_string);
-                            free(json_string);
-                        }
-                    }
-                    
-                    /* Call user callback */
-                    if (ws_protocol->base.on_incoming_json) {
-                        ws_protocol->base.on_incoming_json(json, ws_protocol->base.user_data);
-                    }
-                    
-                    cJSON_Delete(json);
+                if (!json) {
+                    printf("[WebSocket] Failed to parse JSON message\n");
+                    return;
                 }
+
+               
+
+                
+                cJSON* type = cJSON_GetObjectItem(json, "type");
+                if (!cJSON_IsString(type) || !type->valuestring) {
+                    printf("[WebSocket] Invalid or missing message type\n");
+                    cJSON_Delete(json);
+                    return;
+                }
+                
+                printf("[WebSocket] Message type: %s\n", type->valuestring);
+                
+                /* Handle different message types */
+                if (strcmp(type->valuestring, "hello") == 0) {
+                    /* Server hello message - handle internally */
+                    printf("[WebSocket] Processing server hello message\n");
+                    char* json_string = cJSON_Print(json);
+                    if (json_string) {
+                        linx_websocket_parse_server_hello(ws_protocol, json_string);
+                        printf("[WebSocket] Server hello processed successfully\n");
+                        free(json_string);
+                    } else {
+                        printf("[WebSocket] Failed to serialize hello message\n");
+                    }
+                } 
+
+                /* Other message types - call user callback */
+                if (ws_protocol->base.on_incoming_json) {
+                    ws_protocol->base.on_incoming_json(json, ws_protocol->base.user_data);
+                    printf("[WebSocket] User callback executed for type: %s\n", type->valuestring);
+                } else {
+                    printf("[WebSocket] No user callback registered\n");
+                }
+              
+
+                cJSON_Delete(json);
             } else if (wm->flags & WEBSOCKET_OP_BINARY) {
-                /* Binary message - parse as audio data */
-                if (wm->data.len >= sizeof(linx_binary_protocol2_t)) {
-                    linx_binary_protocol2_t* bp2 = (linx_binary_protocol2_t*)wm->data.buf;
-                    uint16_t version = ntohs(bp2->version);
-                    uint16_t type = ntohs(bp2->type);
-                    uint32_t payload_size = ntohl(bp2->payload_size);
-                    
-                    if (type == 0 && payload_size > 0) { /* Audio data */
-                        linx_audio_stream_packet_t* packet = linx_audio_stream_packet_create(payload_size);
-                        if (packet) {
-                            packet->timestamp = ntohl(bp2->timestamp);
-                            memcpy(packet->payload, bp2->payload, payload_size);
+                printf("[WebSocket] Binary message\n");
+                /* Binary message - parse as audio data based on protocol version */
+                if (ws_protocol->base.on_incoming_audio) {
+                    if (ws_protocol->version == 2) {
+                        /* Use binary protocol v2 */
+                        if (wm->data.len >= sizeof(linx_binary_protocol2_t)) {
+                            linx_binary_protocol2_t* bp2 = (linx_binary_protocol2_t*)wm->data.buf;
+                            uint16_t version = ntohs(bp2->version);
+                            uint16_t type = ntohs(bp2->type);
+                            uint32_t timestamp = ntohl(bp2->timestamp);
+                            uint32_t payload_size = ntohl(bp2->payload_size);
                             
-                            if (ws_protocol->base.on_incoming_audio) {
-                                ws_protocol->base.on_incoming_audio(packet, ws_protocol->base.user_data);
+                            if (type == 0 && payload_size > 0) { /* Audio data */
+                                linx_audio_stream_packet_t* packet = linx_audio_stream_packet_create(payload_size);
+                                if (packet) {
+                                    packet->sample_rate = ws_protocol->base.server_sample_rate;
+                                    packet->frame_duration = ws_protocol->base.server_frame_duration;
+                                    packet->timestamp = timestamp;
+                                    memcpy(packet->payload, bp2->payload, payload_size);
+                                    
+                                    ws_protocol->base.on_incoming_audio(packet, ws_protocol->base.user_data);
+                                    linx_audio_stream_packet_destroy(packet);
+                                }
                             }
+                        }
+                    } else if (ws_protocol->version == 3) {
+                        /* Use binary protocol v3 */
+                        if (wm->data.len >= sizeof(linx_binary_protocol3_t)) {
+                            linx_binary_protocol3_t* bp3 = (linx_binary_protocol3_t*)wm->data.buf;
+                            uint8_t type = bp3->type;
+                            uint16_t payload_size = ntohs(bp3->payload_size);
                             
+                            if (type == 0 && payload_size > 0) { /* Audio data */
+                                linx_audio_stream_packet_t* packet = linx_audio_stream_packet_create(payload_size);
+                                if (packet) {
+                                    packet->sample_rate = ws_protocol->base.server_sample_rate;
+                                    packet->frame_duration = ws_protocol->base.server_frame_duration;
+                                    packet->timestamp = 0; /* v3 protocol doesn't include timestamp */
+                                    memcpy(packet->payload, bp3->payload, payload_size);
+                                    
+                                    ws_protocol->base.on_incoming_audio(packet, ws_protocol->base.user_data);
+                                    linx_audio_stream_packet_destroy(packet);
+                                }
+                            }
+                        }
+                    } else {
+                        /* Fallback for unsupported protocol versions - treat as raw audio data */
+                        linx_audio_stream_packet_t* packet = linx_audio_stream_packet_create(wm->data.len);
+                        if (packet) {
+                            packet->sample_rate = ws_protocol->base.server_sample_rate;
+                            packet->frame_duration = ws_protocol->base.server_frame_duration;
+                            packet->timestamp = 0;
+                            memcpy(packet->payload, wm->data.buf, wm->data.len);
+                            
+                            ws_protocol->base.on_incoming_audio(packet, ws_protocol->base.user_data);
                             linx_audio_stream_packet_destroy(packet);
                         }
                     }
@@ -384,9 +447,10 @@ bool linx_websocket_send_audio(linx_protocol_t* protocol, linx_audio_stream_pack
         free(buffer);
         
         return true;
+    } else {
+        /* Fallback for unsupported protocol versions - send raw payload */
+        return mg_ws_send(ws_protocol->conn, packet->payload, packet->payload_size, WEBSOCKET_OP_BINARY) > 0;
     }
-    
-    return false;
 }
 
 bool linx_websocket_send_text(linx_protocol_t* protocol, const char* text) {
