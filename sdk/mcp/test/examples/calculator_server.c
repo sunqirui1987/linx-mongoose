@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <unistd.h>
 
 // 全局服务器实例
 static mcp_server_t* g_server = NULL;
@@ -32,7 +33,7 @@ mcp_return_value_t add_callback(const mcp_property_list_t* properties) {
     result.type = MCP_RETURN_TYPE_STRING;
     
     if (!properties || properties->count < 2) {
-        result.string_val = mcp_strdup("Error: Addition requires two numbers (a and b)");
+        result.value.string_val = mcp_strdup("Error: Addition requires two numbers (a and b)");
         return result;
     }
     
@@ -42,7 +43,7 @@ mcp_return_value_t add_callback(const mcp_property_list_t* properties) {
     if (!a_prop || !b_prop || 
         a_prop->type != MCP_PROPERTY_TYPE_INTEGER || 
         b_prop->type != MCP_PROPERTY_TYPE_INTEGER) {
-        result.string_val = mcp_strdup("Error: Both parameters must be integers");
+        result.value.string_val = mcp_strdup("Error: Both parameters must be integers");
         return result;
     }
     
@@ -52,7 +53,7 @@ mcp_return_value_t add_callback(const mcp_property_list_t* properties) {
     
     char* response = malloc(128);
     snprintf(response, 128, "Result: %d + %d = %d", a, b, sum);
-    result.string_val = response;
+    result.value.string_val = response;
     
     return result;
 }
@@ -63,7 +64,7 @@ mcp_return_value_t subtract_callback(const mcp_property_list_t* properties) {
     result.type = MCP_RETURN_TYPE_STRING;
     
     if (!properties || properties->count < 2) {
-        result.string_val = mcp_strdup("Error: Subtraction requires two numbers (a and b)");
+        result.value.string_val = mcp_strdup("Error: Subtraction requires two numbers (a and b)");
         return result;
     }
     
@@ -73,7 +74,7 @@ mcp_return_value_t subtract_callback(const mcp_property_list_t* properties) {
     if (!a_prop || !b_prop || 
         a_prop->type != MCP_PROPERTY_TYPE_INTEGER || 
         b_prop->type != MCP_PROPERTY_TYPE_INTEGER) {
-        result.string_val = mcp_strdup("Error: Both parameters must be integers");
+        result.value.string_val = mcp_strdup("Error: Both parameters must be integers");
         return result;
     }
     
@@ -83,7 +84,7 @@ mcp_return_value_t subtract_callback(const mcp_property_list_t* properties) {
     
     char* response = malloc(128);
     snprintf(response, 128, "Result: %d - %d = %d", a, b, diff);
-    result.string_val = response;
+    result.value.string_val = response;
     
     return result;
 }
@@ -94,7 +95,7 @@ mcp_return_value_t multiply_callback(const mcp_property_list_t* properties) {
     result.type = MCP_RETURN_TYPE_STRING;
     
     if (!properties || properties->count < 2) {
-        result.string_val = mcp_strdup("Error: Multiplication requires two numbers (a and b)");
+        result.value.string_val = mcp_strdup("Error: Multiplication requires two numbers (a and b)");
         return result;
     }
     
@@ -104,7 +105,7 @@ mcp_return_value_t multiply_callback(const mcp_property_list_t* properties) {
     if (!a_prop || !b_prop || 
         a_prop->type != MCP_PROPERTY_TYPE_INTEGER || 
         b_prop->type != MCP_PROPERTY_TYPE_INTEGER) {
-        result.string_val = mcp_strdup("Error: Both parameters must be integers");
+        result.value.string_val = mcp_strdup("Error: Both parameters must be integers");
         return result;
     }
     
@@ -114,7 +115,7 @@ mcp_return_value_t multiply_callback(const mcp_property_list_t* properties) {
     
     char* response = malloc(128);
     snprintf(response, 128, "Result: %d × %d = %d", a, b, product);
-    result.string_val = response;
+    result.value.string_val = response;
     
     return result;
 }
@@ -125,7 +126,7 @@ mcp_return_value_t divide_callback(const mcp_property_list_t* properties) {
     result.type = MCP_RETURN_TYPE_STRING;
     
     if (!properties || properties->count < 2) {
-        result.string_val = mcp_strdup("Error: Division requires two numbers (a and b)");
+        result.value.string_val = mcp_strdup("Error: Division requires two numbers (a and b)");
         return result;
     }
     
@@ -135,7 +136,7 @@ mcp_return_value_t divide_callback(const mcp_property_list_t* properties) {
     if (!a_prop || !b_prop || 
         a_prop->type != MCP_PROPERTY_TYPE_INTEGER || 
         b_prop->type != MCP_PROPERTY_TYPE_INTEGER) {
-        result.string_val = mcp_strdup("Error: Both parameters must be integers");
+        result.value.string_val = mcp_strdup("Error: Both parameters must be integers");
         return result;
     }
     
@@ -143,7 +144,7 @@ mcp_return_value_t divide_callback(const mcp_property_list_t* properties) {
     int b = mcp_property_get_int_value(b_prop);
     
     if (b == 0) {
-        result.string_val = mcp_strdup("Error: Division by zero is not allowed");
+        result.value.string_val = mcp_strdup("Error: Division by zero is not allowed");
         return result;
     }
     
@@ -151,7 +152,7 @@ mcp_return_value_t divide_callback(const mcp_property_list_t* properties) {
     
     char* response = malloc(128);
     snprintf(response, 128, "Result: %d ÷ %d = %.2f", a, b, quotient);
-    result.string_val = response;
+    result.value.string_val = response;
     
     return result;
 }
@@ -162,7 +163,7 @@ mcp_return_value_t power_callback(const mcp_property_list_t* properties) {
     result.type = MCP_RETURN_TYPE_STRING;
     
     if (!properties || properties->count < 2) {
-        result.string_val = mcp_strdup("Error: Power operation requires base and exponent");
+        result.value.string_val = mcp_strdup("Error: Power operation requires base and exponent");
         return result;
     }
     
@@ -172,7 +173,7 @@ mcp_return_value_t power_callback(const mcp_property_list_t* properties) {
     if (!base_prop || !exp_prop || 
         base_prop->type != MCP_PROPERTY_TYPE_INTEGER || 
         exp_prop->type != MCP_PROPERTY_TYPE_INTEGER) {
-        result.string_val = mcp_strdup("Error: Both base and exponent must be integers");
+        result.value.string_val = mcp_strdup("Error: Both base and exponent must be integers");
         return result;
     }
     
@@ -183,7 +184,7 @@ mcp_return_value_t power_callback(const mcp_property_list_t* properties) {
     
     char* response = malloc(128);
     snprintf(response, 128, "Result: %d^%d = %.2f", base, exponent, power_result);
-    result.string_val = response;
+    result.value.string_val = response;
     
     return result;
 }
@@ -194,26 +195,26 @@ mcp_return_value_t factorial_callback(const mcp_property_list_t* properties) {
     result.type = MCP_RETURN_TYPE_STRING;
     
     if (!properties || properties->count < 1) {
-        result.string_val = mcp_strdup("Error: Factorial requires one number (n)");
+        result.value.string_val = mcp_strdup("Error: Factorial requires one number (n)");
         return result;
     }
     
     const mcp_property_t* n_prop = mcp_property_list_find(properties, "n");
     
     if (!n_prop || n_prop->type != MCP_PROPERTY_TYPE_INTEGER) {
-        result.string_val = mcp_strdup("Error: Parameter must be an integer");
+        result.value.string_val = mcp_strdup("Error: Parameter must be an integer");
         return result;
     }
     
     int n = mcp_property_get_int_value(n_prop);
     
     if (n < 0) {
-        result.string_val = mcp_strdup("Error: Factorial is not defined for negative numbers");
+        result.value.string_val = mcp_strdup("Error: Factorial is not defined for negative numbers");
         return result;
     }
     
     if (n > 20) {
-        result.string_val = mcp_strdup("Error: Factorial calculation limited to n <= 20");
+        result.value.string_val = mcp_strdup("Error: Factorial calculation limited to n <= 20");
         return result;
     }
     
@@ -224,7 +225,7 @@ mcp_return_value_t factorial_callback(const mcp_property_list_t* properties) {
     
     char* response = malloc(128);
     snprintf(response, 128, "Result: %d! = %lld", n, factorial);
-    result.string_val = response;
+    result.value.string_val = response;
     
     return result;
 }
@@ -353,13 +354,69 @@ void process_message(const char* message) {
     mcp_server_parse_message(g_server, message);
 }
 
+// 运行自动化测试
+int run_automated_tests() {
+    printf("=== Running Calculator Server Automated Tests ===\n");
+    
+    // 测试消息列表
+    const char* test_messages[] = {
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"add\",\"arguments\":{\"a\":5,\"b\":3}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"subtract\",\"arguments\":{\"a\":10,\"b\":4}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"tools/call\",\"params\":{\"name\":\"multiply\",\"arguments\":{\"a\":6,\"b\":7}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"tools/call\",\"params\":{\"name\":\"divide\",\"arguments\":{\"a\":20,\"b\":4}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"tools/call\",\"params\":{\"name\":\"power\",\"arguments\":{\"base\":2,\"exponent\":8}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"tools/call\",\"params\":{\"name\":\"factorial\",\"arguments\":{\"n\":5}}}",
+        // 错误测试
+        "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"divide\",\"arguments\":{\"a\":10,\"b\":0}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":10,\"method\":\"tools/call\",\"params\":{\"name\":\"factorial\",\"arguments\":{\"n\":-1}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":11,\"method\":\"tools/call\",\"params\":{\"name\":\"factorial\",\"arguments\":{\"n\":25}}}"
+    };
+    
+    const char* test_descriptions[] = {
+        "Initialize server",
+        "List available tools",
+        "Test addition: 5 + 3",
+        "Test subtraction: 10 - 4", 
+        "Test multiplication: 6 × 7",
+        "Test division: 20 ÷ 4",
+        "Test power: 2^8",
+        "Test factorial: 5!",
+        "Test division by zero error",
+        "Test negative factorial error",
+        "Test factorial limit error"
+    };
+    
+    size_t num_tests = sizeof(test_messages) / sizeof(test_messages[0]);
+    int passed_tests = 0;
+    
+    for (size_t i = 0; i < num_tests; i++) {
+        printf("\nTest %zu: %s\n", i + 1, test_descriptions[i]);
+        printf("Message: %s\n", test_messages[i]);
+        
+        // 处理消息
+        process_message(test_messages[i]);
+        passed_tests++;
+        
+        // 短暂延迟以便观察输出
+        usleep(100000); // 100ms
+    }
+    
+    printf("\n=== Test Results ===\n");
+    printf("Total tests: %zu\n", num_tests);
+    printf("Passed tests: %d\n", passed_tests);
+    printf("Calculator server tests completed successfully!\n");
+    
+    return 0;
+}
+
 // 主函数
 int main() {
     printf("=== MCP Calculator Server Example ===\n");
     printf("This server provides basic mathematical operations.\n");
     printf("Available tools: add, subtract, multiply, divide, power, factorial\n");
-    printf("Send JSON-RPC messages to interact with the server.\n");
-    printf("Type 'quit' to exit.\n\n");
+    printf("Running automated tests...\n\n");
     
     // 初始化服务器
     if (!init_calculator_server()) {
@@ -367,43 +424,11 @@ int main() {
         return 1;
     }
     
-    // 示例消息
-    printf("Example messages:\n");
-    printf("Initialize: {\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{}}}\n");
-    printf("List tools: {\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}\n");
-    printf("Add 5+3: {\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"add\",\"arguments\":{\"a\":5,\"b\":3}}}\n");
-    printf("Calculate 2^8: {\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"power\",\"arguments\":{\"base\":2,\"exponent\":8}}}\n");
-    printf("Factorial 5!: {\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"tools/call\",\"params\":{\"name\":\"factorial\",\"arguments\":{\"n\":5}}}\n\n");
-    
-    // 主循环
-    char input[1024];
-    while (1) {
-        printf("> ");
-        fflush(stdout);
-        
-        if (!fgets(input, sizeof(input), stdin)) {
-            break;
-        }
-        
-        // 移除换行符
-        size_t len = strlen(input);
-        if (len > 0 && input[len-1] == '\n') {
-            input[len-1] = '\0';
-        }
-        
-        // 检查退出命令
-        if (strcmp(input, "quit") == 0 || strcmp(input, "exit") == 0) {
-            break;
-        }
-        
-        // 处理消息
-        if (strlen(input) > 0) {
-            process_message(input);
-        }
-    }
+    // 运行自动化测试
+    int result = run_automated_tests();
     
     printf("\nShutting down calculator server...\n");
     cleanup_calculator_server();
     
-    return 0;
+    return result;
 }

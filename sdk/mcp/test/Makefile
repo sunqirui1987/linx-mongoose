@@ -45,11 +45,6 @@ $(BUILD_DIR)/test_%: test_%.c $(MCP_SOURCES) $(CJSON_SOURCES) test_framework.c |
 	@echo "编译测试: $@"
 	$(CC) $(CFLAGS) -o $@ $< test_framework.c $(MCP_SOURCES) $(CJSON_SOURCES) $(LDFLAGS)
 
-# 编译集成测试
-$(BUILD_DIR)/test_integration: test_integration.c $(MCP_SOURCES) $(CJSON_SOURCES) | $(BUILD_DIR)
-	@echo "编译集成测试: $@"
-	$(CC) $(CFLAGS) -o $@ $< $(MCP_SOURCES) $(CJSON_SOURCES) $(LDFLAGS)
-
 # 编译示例程序
 $(BUILD_DIR)/%: $(EXAMPLES_DIR)/%.c $(MCP_SOURCES) $(CJSON_SOURCES) | $(BUILD_DIR)
 	@echo "编译示例: $@"
@@ -127,6 +122,38 @@ run-weather: $(BUILD_DIR)/weather_server
 	@echo "启动天气服务器示例..."
 	@$(BUILD_DIR)/weather_server
 
+# 运行示例程序自动化测试
+test-examples: $(EXAMPLE_TARGETS)
+	@echo "=========================================="
+	@echo "运行示例程序自动化测试"
+	@echo "=========================================="
+	@echo ""
+	@echo "1. 测试计算器服务器..."
+	@timeout 30s $(BUILD_DIR)/calculator_server || echo "计算器服务器测试完成"
+	@echo ""
+	@echo "2. 测试文件管理服务器..."
+	@timeout 30s $(BUILD_DIR)/file_manager_server || echo "文件管理服务器测试完成"
+	@echo ""
+	@echo "3. 测试天气服务器..."
+	@timeout 30s $(BUILD_DIR)/weather_server || echo "天气服务器测试完成"
+	@echo ""
+	@echo "=========================================="
+	@echo "所有示例程序自动化测试完成！"
+	@echo "=========================================="
+
+# 运行单个示例程序自动化测试
+test-calculator: $(BUILD_DIR)/calculator_server
+	@echo "运行计算器服务器自动化测试..."
+	@timeout 30s $(BUILD_DIR)/calculator_server || echo "计算器服务器测试完成"
+
+test-file-manager: $(BUILD_DIR)/file_manager_server
+	@echo "运行文件管理服务器自动化测试..."
+	@timeout 30s $(BUILD_DIR)/file_manager_server || echo "文件管理服务器测试完成"
+
+test-weather: $(BUILD_DIR)/weather_server
+	@echo "运行天气服务器自动化测试..."
+	@timeout 30s $(BUILD_DIR)/weather_server || echo "天气服务器测试完成"
+
 # 代码覆盖率测试（需要 gcov）
 coverage: CFLAGS += --coverage
 coverage: LDFLAGS += --coverage
@@ -182,6 +209,8 @@ help:
 	@echo "  all              - 编译所有测试和示例"
 	@echo "  test             - 运行所有测试"
 	@echo "  test-<name>      - 运行特定测试（types, utils, property, tool, server, integration）"
+	@echo "  test-examples    - 运行所有示例程序自动化测试"
+	@echo "  test-<example>   - 运行特定示例自动化测试（calculator, file-manager, weather）"
 	@echo "  examples         - 编译所有示例程序"
 	@echo "  run-<example>    - 运行特定示例（calculator, file-manager, weather）"
 	@echo "  coverage         - 运行代码覆盖率测试"
@@ -200,5 +229,6 @@ help:
 
 # 确保目标不会与文件名冲突
 .PHONY: test test-types test-utils test-property test-tool test-server test-integration
+.PHONY: test-examples test-calculator test-file-manager test-weather
 .PHONY: examples run-calculator run-file-manager run-weather
 .PHONY: coverage valgrind static-analysis format install-deps

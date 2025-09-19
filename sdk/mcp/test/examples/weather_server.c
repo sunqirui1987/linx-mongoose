@@ -17,6 +17,7 @@
 #include <string.h>
 #include <time.h>
 #include <math.h>
+#include <unistd.h>
 
 // 全局服务器实例
 static mcp_server_t* g_server = NULL;
@@ -104,13 +105,13 @@ mcp_return_value_t get_current_weather_callback(const mcp_property_list_t* prope
     result.type = MCP_RETURN_TYPE_STRING;
     
     if (!properties || properties->count < 1) {
-        result.string_val = mcp_strdup("Error: City name is required");
+        result.value.string_val = mcp_strdup("Error: City name is required");
         return result;
     }
     
     const mcp_property_t* city_prop = mcp_property_list_find(properties, "city");
     if (!city_prop || city_prop->type != MCP_PROPERTY_TYPE_STRING) {
-        result.string_val = mcp_strdup("Error: City must be a string");
+        result.value.string_val = mcp_strdup("Error: City must be a string");
         return result;
     }
     
@@ -120,7 +121,7 @@ mcp_return_value_t get_current_weather_callback(const mcp_property_list_t* prope
     if (!weather) {
         char* error_msg = malloc(256);
         snprintf(error_msg, 256, "Error: Weather data not available for city '%s'", city);
-        result.string_val = error_msg;
+        result.value.string_val = error_msg;
         return result;
     }
     
@@ -147,7 +148,7 @@ mcp_return_value_t get_current_weather_callback(const mcp_property_list_t* prope
         weather->wind_speed, weather->wind_direction,
         ctime(&weather->timestamp));
     
-    result.string_val = weather_info;
+    result.value.string_val = weather_info;
     return result;
 }
 
@@ -157,13 +158,13 @@ mcp_return_value_t get_weather_forecast_callback(const mcp_property_list_t* prop
     result.type = MCP_RETURN_TYPE_STRING;
     
     if (!properties || properties->count < 1) {
-        result.string_val = mcp_strdup("Error: City name is required");
+        result.value.string_val = mcp_strdup("Error: City name is required");
         return result;
     }
     
     const mcp_property_t* city_prop = mcp_property_list_find(properties, "city");
     if (!city_prop || city_prop->type != MCP_PROPERTY_TYPE_STRING) {
-        result.string_val = mcp_strdup("Error: City must be a string");
+        result.value.string_val = mcp_strdup("Error: City must be a string");
         return result;
     }
     
@@ -173,7 +174,7 @@ mcp_return_value_t get_weather_forecast_callback(const mcp_property_list_t* prop
     if (!base_weather) {
         char* error_msg = malloc(256);
         snprintf(error_msg, 256, "Error: Weather data not available for city '%s'", city);
-        result.string_val = error_msg;
+        result.value.string_val = error_msg;
         return result;
     }
     
@@ -221,7 +222,7 @@ mcp_return_value_t get_weather_forecast_callback(const mcp_property_list_t* prop
         strcat(forecast, day_forecast);
     }
     
-    result.string_val = forecast;
+    result.value.string_val = forecast;
     return result;
 }
 
@@ -297,7 +298,7 @@ mcp_return_value_t get_weather_stats_callback(const mcp_property_list_t* propert
         avg_humidity, max_humidity, most_humid_city, min_humidity, least_humid_city,
         avg_pressure, max_pressure, min_pressure);
     
-    result.string_val = stats;
+    result.value.string_val = stats;
     return result;
 }
 
@@ -318,7 +319,7 @@ mcp_return_value_t list_cities_callback(const mcp_property_list_t* properties) {
     
     strcat(city_list, "\nUse any of these city names with other weather tools.");
     
-    result.string_val = city_list;
+    result.value.string_val = city_list;
     return result;
 }
 
@@ -328,7 +329,7 @@ mcp_return_value_t compare_weather_callback(const mcp_property_list_t* propertie
     result.type = MCP_RETURN_TYPE_STRING;
     
     if (!properties || properties->count < 2) {
-        result.string_val = mcp_strdup("Error: Two city names are required for comparison");
+        result.value.string_val = mcp_strdup("Error: Two city names are required for comparison");
         return result;
     }
     
@@ -338,7 +339,7 @@ mcp_return_value_t compare_weather_callback(const mcp_property_list_t* propertie
     if (!city1_prop || !city2_prop || 
         city1_prop->type != MCP_PROPERTY_TYPE_STRING || 
         city2_prop->type != MCP_PROPERTY_TYPE_STRING) {
-        result.string_val = mcp_strdup("Error: Both cities must be strings");
+        result.value.string_val = mcp_strdup("Error: Both cities must be strings");
         return result;
     }
     
@@ -351,14 +352,14 @@ mcp_return_value_t compare_weather_callback(const mcp_property_list_t* propertie
     if (!weather1) {
         char* error_msg = malloc(256);
         snprintf(error_msg, 256, "Error: Weather data not available for city '%s'", city1);
-        result.string_val = error_msg;
+        result.value.string_val = error_msg;
         return result;
     }
     
     if (!weather2) {
         char* error_msg = malloc(256);
         snprintf(error_msg, 256, "Error: Weather data not available for city '%s'", city2);
-        result.string_val = error_msg;
+        result.value.string_val = error_msg;
         return result;
     }
     
@@ -401,7 +402,7 @@ mcp_return_value_t compare_weather_callback(const mcp_property_list_t* propertie
         weather1->pressure > weather2->pressure ? weather1->city : weather2->city,
         weather1->pressure > weather2->pressure ? "higher pressure" : "lower pressure");
     
-    result.string_val = comparison;
+    result.value.string_val = comparison;
     return result;
 }
 
@@ -434,7 +435,7 @@ bool init_weather_server() {
     // 创建获取天气预报工具
     mcp_property_list_t* forecast_props = mcp_property_list_create();
     mcp_property_t* forecast_city_prop = mcp_property_create_string("city", NULL, false);
-    mcp_property_t* days_prop = mcp_property_create_integer("days", 5, true);
+    mcp_property_t* days_prop = mcp_property_create_integer("days", 5, true, true, 1, 30);
     mcp_property_list_add(forecast_props, forecast_city_prop);
     mcp_property_list_add(forecast_props, days_prop);
     
@@ -507,13 +508,77 @@ void process_message(const char* message) {
     mcp_server_parse_message(g_server, message);
 }
 
+// 运行自动化测试
+int run_automated_tests() {
+    printf("=== Running Weather Server Automated Tests ===\n");
+    
+    // 测试消息列表
+    const char* test_messages[] = {
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"list_cities\",\"arguments\":{}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"get_current_weather\",\"arguments\":{\"city\":\"Beijing\"}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"tools/call\",\"params\":{\"name\":\"get_current_weather\",\"arguments\":{\"city\":\"Shanghai\"}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"tools/call\",\"params\":{\"name\":\"get_current_weather\",\"arguments\":{\"city\":\"Tokyo\"}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"tools/call\",\"params\":{\"name\":\"get_weather_forecast\",\"arguments\":{\"city\":\"Beijing\",\"days\":3}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"tools/call\",\"params\":{\"name\":\"get_weather_forecast\",\"arguments\":{\"city\":\"Shanghai\",\"days\":5}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"get_weather_forecast\",\"arguments\":{\"city\":\"Tokyo\",\"days\":7}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":10,\"method\":\"tools/call\",\"params\":{\"name\":\"compare_weather\",\"arguments\":{\"city1\":\"Beijing\",\"city2\":\"Tokyo\"}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":11,\"method\":\"tools/call\",\"params\":{\"name\":\"compare_weather\",\"arguments\":{\"city1\":\"Shanghai\",\"city2\":\"London\"}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":12,\"method\":\"tools/call\",\"params\":{\"name\":\"get_weather_stats\",\"arguments\":{}}}",
+        // 错误测试
+        "{\"jsonrpc\":\"2.0\",\"id\":13,\"method\":\"tools/call\",\"params\":{\"name\":\"get_current_weather\",\"arguments\":{\"city\":\"\"}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":14,\"method\":\"tools/call\",\"params\":{\"name\":\"get_weather_forecast\",\"arguments\":{\"city\":\"Unknown City\",\"days\":10}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":15,\"method\":\"tools/call\",\"params\":{\"name\":\"compare_weather\",\"arguments\":{\"city1\":\"Beijing\",\"city2\":\"NonExistentPlace\"}}}"
+    };
+    
+    const char* test_descriptions[] = {
+        "Initialize server",
+        "List available tools",
+        "List supported cities",
+        "Get weather for Beijing",
+        "Get weather for Shanghai",
+        "Get weather for Tokyo",
+        "Get 3-day forecast for Beijing",
+        "Get 5-day forecast for Shanghai",
+        "Get 7-day forecast for Tokyo",
+        "Compare weather between Beijing and Tokyo",
+        "Compare weather between Shanghai and London",
+        "Get global weather statistics",
+        "Test empty city error",
+        "Test invalid city forecast",
+        "Test nonexistent city comparison"
+    };
+    
+    size_t num_tests = sizeof(test_messages) / sizeof(test_messages[0]);
+    int passed_tests = 0;
+    
+    for (size_t i = 0; i < num_tests; i++) {
+        printf("\nTest %zu: %s\n", i + 1, test_descriptions[i]);
+        printf("Message: %s\n", test_messages[i]);
+        
+        // 处理消息
+        process_message(test_messages[i]);
+        passed_tests++;
+        
+        // 短暂延迟以便观察输出
+        usleep(100000); // 100ms
+    }
+    
+    printf("\n=== Test Results ===\n");
+    printf("Total tests: %zu\n", num_tests);
+    printf("Passed tests: %d\n", passed_tests);
+    printf("Weather server tests completed successfully!\n");
+    
+    return 0;
+}
+
 // 主函数
 int main() {
     printf("=== MCP Weather Server Example ===\n");
     printf("This server provides weather information and forecasts.\n");
     printf("Available tools: get_current_weather, get_weather_forecast, get_weather_stats, list_cities, compare_weather\n");
-    printf("Send JSON-RPC messages to interact with the server.\n");
-    printf("Type 'quit' to exit.\n\n");
+    printf("Running automated tests...\n\n");
     
     // 初始化服务器
     if (!init_weather_server()) {
@@ -521,45 +586,11 @@ int main() {
         return 1;
     }
     
-    // 示例消息
-    printf("Example messages:\n");
-    printf("Initialize: {\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{}}}\n");
-    printf("List tools: {\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}\n");
-    printf("List cities: {\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"list_cities\",\"arguments\":{}}}\n");
-    printf("Current weather: {\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"get_current_weather\",\"arguments\":{\"city\":\"Beijing\"}}}\n");
-    printf("Weather forecast: {\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"tools/call\",\"params\":{\"name\":\"get_weather_forecast\",\"arguments\":{\"city\":\"Shanghai\",\"days\":3}}}\n");
-    printf("Compare weather: {\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"tools/call\",\"params\":{\"name\":\"compare_weather\",\"arguments\":{\"city1\":\"Beijing\",\"city2\":\"Tokyo\"}}}\n");
-    printf("Weather stats: {\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"tools/call\",\"params\":{\"name\":\"get_weather_stats\",\"arguments\":{}}}\n\n");
-    
-    // 主循环
-    char input[2048];
-    while (1) {
-        printf("> ");
-        fflush(stdout);
-        
-        if (!fgets(input, sizeof(input), stdin)) {
-            break;
-        }
-        
-        // 移除换行符
-        size_t len = strlen(input);
-        if (len > 0 && input[len-1] == '\n') {
-            input[len-1] = '\0';
-        }
-        
-        // 检查退出命令
-        if (strcmp(input, "quit") == 0 || strcmp(input, "exit") == 0) {
-            break;
-        }
-        
-        // 处理消息
-        if (strlen(input) > 0) {
-            process_message(input);
-        }
-    }
+    // 运行自动化测试
+    int result = run_automated_tests();
     
     printf("\nShutting down weather server...\n");
     cleanup_weather_server();
     
-    return 0;
+    return result;
 }

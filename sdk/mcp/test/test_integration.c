@@ -177,13 +177,8 @@ void test_complete_mcp_workflow() {
     TEST_ASSERT(strstr(received_messages[4], "Image analysis") != NULL, "Image analysis response incorrect");
     
     // 清理
-    mcp_property_destroy(a_prop);
-    mcp_property_destroy(b_prop);
-    mcp_property_destroy(input_prop);
-    mcp_property_destroy(img_prop);
-    mcp_property_list_destroy(calc_props);
-    mcp_property_list_destroy(str_props);
-    mcp_property_list_destroy(img_props);
+    // 注意：属性列表的所有权已经转移给工具，会在服务器销毁时自动清理
+    // 不需要手动销毁属性列表，否则会导致双重释放
     mcp_server_destroy(server);
     cleanup_received_messages();
 }
@@ -234,10 +229,7 @@ void test_property_validation_integration() {
     TEST_ASSERT(message_count > 2, "No response for invalid parameters");
     
     // 清理
-    mcp_property_destroy(name_prop);
-    mcp_property_destroy(age_prop);
-    mcp_property_destroy(active_prop);
-    mcp_property_list_destroy(props);
+    // 注意：属性列表的所有权已经转移给工具，会在服务器销毁时自动清理
     mcp_server_destroy(server);
     cleanup_received_messages();
 }
@@ -262,8 +254,8 @@ void test_memory_management_integration() {
             
             mcp_server_add_simple_tool(server, tool_name, "Test tool", props, string_upper_callback);
             
-            mcp_property_destroy(prop);
-            mcp_property_list_destroy(props);
+            // 注意：属性列表的所有权已经转移给工具，会在服务器销毁时自动清理
+            // 不需要手动销毁属性列表，否则会导致双重释放
         }
         
         mcp_server_destroy(server);

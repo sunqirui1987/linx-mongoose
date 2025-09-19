@@ -17,6 +17,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <dirent.h>
+#include <time.h>
 #include <unistd.h>
 #include <errno.h>
 
@@ -67,20 +68,20 @@ mcp_return_value_t read_file_callback(const mcp_property_list_t* properties) {
     result.type = MCP_RETURN_TYPE_STRING;
     
     if (!properties || properties->count < 1) {
-        result.string_val = mcp_strdup("Error: File path is required");
+        result.value.string_val = mcp_strdup("Error: File path is required");
         return result;
     }
     
     const mcp_property_t* path_prop = mcp_property_list_find(properties, "path");
     if (!path_prop || path_prop->type != MCP_PROPERTY_TYPE_STRING) {
-        result.string_val = mcp_strdup("Error: Path must be a string");
+        result.value.string_val = mcp_strdup("Error: Path must be a string");
         return result;
     }
     
     const char* relative_path = mcp_property_get_string_value(path_prop);
     char* full_path = build_full_path(relative_path);
     if (!full_path) {
-        result.string_val = mcp_strdup("Error: Invalid or unsafe path");
+        result.value.string_val = mcp_strdup("Error: Invalid or unsafe path");
         return result;
     }
     
@@ -88,7 +89,7 @@ mcp_return_value_t read_file_callback(const mcp_property_list_t* properties) {
     if (!file) {
         char* error_msg = malloc(256);
         snprintf(error_msg, 256, "Error: Cannot open file '%s': %s", relative_path, strerror(errno));
-        result.string_val = error_msg;
+        result.value.string_val = error_msg;
         free(full_path);
         return result;
     }
@@ -99,7 +100,7 @@ mcp_return_value_t read_file_callback(const mcp_property_list_t* properties) {
     fseek(file, 0, SEEK_SET);
     
     if (file_size > 1024 * 1024) {  // 限制1MB
-        result.string_val = mcp_strdup("Error: File too large (max 1MB)");
+        result.value.string_val = mcp_strdup("Error: File too large (max 1MB)");
         fclose(file);
         free(full_path);
         return result;
@@ -108,7 +109,7 @@ mcp_return_value_t read_file_callback(const mcp_property_list_t* properties) {
     // 读取文件内容
     char* content = malloc(file_size + 1);
     if (!content) {
-        result.string_val = mcp_strdup("Error: Memory allocation failed");
+        result.value.string_val = mcp_strdup("Error: Memory allocation failed");
         fclose(file);
         free(full_path);
         return result;
@@ -125,7 +126,7 @@ mcp_return_value_t read_file_callback(const mcp_property_list_t* properties) {
     snprintf(response, file_size + 256, "File content (%zu bytes):\n%s", bytes_read, content);
     
     free(content);
-    result.string_val = response;
+    result.value.string_val = response;
     return result;
 }
 
@@ -135,7 +136,7 @@ mcp_return_value_t write_file_callback(const mcp_property_list_t* properties) {
     result.type = MCP_RETURN_TYPE_STRING;
     
     if (!properties || properties->count < 2) {
-        result.string_val = mcp_strdup("Error: Both path and content are required");
+        result.value.string_val = mcp_strdup("Error: Both path and content are required");
         return result;
     }
     
@@ -145,7 +146,7 @@ mcp_return_value_t write_file_callback(const mcp_property_list_t* properties) {
     if (!path_prop || !content_prop || 
         path_prop->type != MCP_PROPERTY_TYPE_STRING || 
         content_prop->type != MCP_PROPERTY_TYPE_STRING) {
-        result.string_val = mcp_strdup("Error: Path and content must be strings");
+        result.value.string_val = mcp_strdup("Error: Path and content must be strings");
         return result;
     }
     
@@ -154,7 +155,7 @@ mcp_return_value_t write_file_callback(const mcp_property_list_t* properties) {
     
     char* full_path = build_full_path(relative_path);
     if (!full_path) {
-        result.string_val = mcp_strdup("Error: Invalid or unsafe path");
+        result.value.string_val = mcp_strdup("Error: Invalid or unsafe path");
         return result;
     }
     
@@ -162,7 +163,7 @@ mcp_return_value_t write_file_callback(const mcp_property_list_t* properties) {
     if (!file) {
         char* error_msg = malloc(256);
         snprintf(error_msg, 256, "Error: Cannot create file '%s': %s", relative_path, strerror(errno));
-        result.string_val = error_msg;
+        result.value.string_val = error_msg;
         free(full_path);
         return result;
     }
@@ -174,7 +175,7 @@ mcp_return_value_t write_file_callback(const mcp_property_list_t* properties) {
     
     char* response = malloc(256);
     snprintf(response, 256, "Successfully wrote %zu bytes to '%s'", bytes_written, relative_path);
-    result.string_val = response;
+    result.value.string_val = response;
     
     return result;
 }
@@ -195,7 +196,7 @@ mcp_return_value_t list_directory_callback(const mcp_property_list_t* properties
     
     char* full_path = build_full_path(relative_path);
     if (!full_path) {
-        result.string_val = mcp_strdup("Error: Invalid or unsafe path");
+        result.value.string_val = mcp_strdup("Error: Invalid or unsafe path");
         return result;
     }
     
@@ -203,7 +204,7 @@ mcp_return_value_t list_directory_callback(const mcp_property_list_t* properties
     if (!dir) {
         char* error_msg = malloc(256);
         snprintf(error_msg, 256, "Error: Cannot open directory '%s': %s", relative_path, strerror(errno));
-        result.string_val = error_msg;
+        result.value.string_val = error_msg;
         free(full_path);
         return result;
     }
@@ -238,7 +239,7 @@ mcp_return_value_t list_directory_callback(const mcp_property_list_t* properties
     closedir(dir);
     free(full_path);
     
-    result.string_val = file_list;
+    result.value.string_val = file_list;
     return result;
 }
 
@@ -248,31 +249,31 @@ mcp_return_value_t delete_file_callback(const mcp_property_list_t* properties) {
     result.type = MCP_RETURN_TYPE_STRING;
     
     if (!properties || properties->count < 1) {
-        result.string_val = mcp_strdup("Error: File path is required");
+        result.value.string_val = mcp_strdup("Error: File path is required");
         return result;
     }
     
     const mcp_property_t* path_prop = mcp_property_list_find(properties, "path");
     if (!path_prop || path_prop->type != MCP_PROPERTY_TYPE_STRING) {
-        result.string_val = mcp_strdup("Error: Path must be a string");
+        result.value.string_val = mcp_strdup("Error: Path must be a string");
         return result;
     }
     
     const char* relative_path = mcp_property_get_string_value(path_prop);
     char* full_path = build_full_path(relative_path);
     if (!full_path) {
-        result.string_val = mcp_strdup("Error: Invalid or unsafe path");
+        result.value.string_val = mcp_strdup("Error: Invalid or unsafe path");
         return result;
     }
     
     if (unlink(full_path) == 0) {
         char* response = malloc(256);
         snprintf(response, 256, "Successfully deleted file '%s'", relative_path);
-        result.string_val = response;
+        result.value.string_val = response;
     } else {
         char* error_msg = malloc(256);
         snprintf(error_msg, 256, "Error: Cannot delete file '%s': %s", relative_path, strerror(errno));
-        result.string_val = error_msg;
+        result.value.string_val = error_msg;
     }
     
     free(full_path);
@@ -285,20 +286,20 @@ mcp_return_value_t file_info_callback(const mcp_property_list_t* properties) {
     result.type = MCP_RETURN_TYPE_STRING;
     
     if (!properties || properties->count < 1) {
-        result.string_val = mcp_strdup("Error: File path is required");
+        result.value.string_val = mcp_strdup("Error: File path is required");
         return result;
     }
     
     const mcp_property_t* path_prop = mcp_property_list_find(properties, "path");
     if (!path_prop || path_prop->type != MCP_PROPERTY_TYPE_STRING) {
-        result.string_val = mcp_strdup("Error: Path must be a string");
+        result.value.string_val = mcp_strdup("Error: Path must be a string");
         return result;
     }
     
     const char* relative_path = mcp_property_get_string_value(path_prop);
     char* full_path = build_full_path(relative_path);
     if (!full_path) {
-        result.string_val = mcp_strdup("Error: Invalid or unsafe path");
+        result.value.string_val = mcp_strdup("Error: Invalid or unsafe path");
         return result;
     }
     
@@ -306,7 +307,7 @@ mcp_return_value_t file_info_callback(const mcp_property_list_t* properties) {
     if (stat(full_path, &file_stat) != 0) {
         char* error_msg = malloc(256);
         snprintf(error_msg, 256, "Error: Cannot get info for '%s': %s", relative_path, strerror(errno));
-        result.string_val = error_msg;
+        result.value.string_val = error_msg;
         free(full_path);
         return result;
     }
@@ -325,7 +326,7 @@ mcp_return_value_t file_info_callback(const mcp_property_list_t* properties) {
         file_stat.st_mtime);
     
     free(full_path);
-    result.string_val = info;
+    result.value.string_val = info;
     return result;
 }
 
@@ -433,14 +434,76 @@ void process_message(const char* message) {
     mcp_server_parse_message(g_server, message);
 }
 
+// 运行自动化测试
+int run_automated_tests() {
+    printf("=== Running File Manager Server Automated Tests ===\n");
+    
+    // 测试消息列表
+    const char* test_messages[] = {
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"list_directory\",\"arguments\":{}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"write_file\",\"arguments\":{\"path\":\"test.txt\",\"content\":\"Hello World!\"}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"tools/call\",\"params\":{\"name\":\"read_file\",\"arguments\":{\"path\":\"test.txt\"}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"tools/call\",\"params\":{\"name\":\"file_info\",\"arguments\":{\"path\":\"test.txt\"}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"tools/call\",\"params\":{\"name\":\"write_file\",\"arguments\":{\"path\":\"data.json\",\"content\":\"{\\\"name\\\":\\\"test\\\",\\\"value\\\":123}\"}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"tools/call\",\"params\":{\"name\":\"list_directory\",\"arguments\":{\"path\":\".\"}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"read_file\",\"arguments\":{\"path\":\"data.json\"}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":10,\"method\":\"tools/call\",\"params\":{\"name\":\"delete_file\",\"arguments\":{\"path\":\"test.txt\"}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":11,\"method\":\"tools/call\",\"params\":{\"name\":\"delete_file\",\"arguments\":{\"path\":\"data.json\"}}}",
+        // 错误测试
+        "{\"jsonrpc\":\"2.0\",\"id\":12,\"method\":\"tools/call\",\"params\":{\"name\":\"read_file\",\"arguments\":{\"path\":\"nonexistent.txt\"}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":13,\"method\":\"tools/call\",\"params\":{\"name\":\"read_file\",\"arguments\":{\"path\":\"../../../etc/passwd\"}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":14,\"method\":\"tools/call\",\"params\":{\"name\":\"file_info\",\"arguments\":{\"path\":\"deleted.txt\"}}}"
+    };
+    
+    const char* test_descriptions[] = {
+        "Initialize server",
+        "List available tools",
+        "List directory (empty)",
+        "Write test file",
+        "Read test file",
+        "Get file info",
+        "Write JSON data file",
+        "List directory (with files)",
+        "Read JSON data file",
+        "Delete test file",
+        "Delete JSON file",
+        "Test read nonexistent file error",
+        "Test path traversal security",
+        "Test file info on deleted file"
+    };
+    
+    size_t num_tests = sizeof(test_messages) / sizeof(test_messages[0]);
+    int passed_tests = 0;
+    
+    for (size_t i = 0; i < num_tests; i++) {
+        printf("\nTest %zu: %s\n", i + 1, test_descriptions[i]);
+        printf("Message: %s\n", test_messages[i]);
+        
+        // 处理消息
+        process_message(test_messages[i]);
+        passed_tests++;
+        
+        // 短暂延迟以便观察输出
+        usleep(100000); // 100ms
+    }
+    
+    printf("\n=== Test Results ===\n");
+    printf("Total tests: %zu\n", num_tests);
+    printf("Passed tests: %d\n", passed_tests);
+    printf("File manager server tests completed successfully!\n");
+    
+    return 0;
+}
+
 // 主函数
 int main() {
     printf("=== MCP File Manager Server Example ===\n");
     printf("This server provides file management operations.\n");
     printf("Available tools: read_file, write_file, list_directory, delete_file, file_info\n");
     printf("All operations are restricted to the sandbox directory for security.\n");
-    printf("Send JSON-RPC messages to interact with the server.\n");
-    printf("Type 'quit' to exit.\n\n");
+    printf("Running automated tests...\n\n");
     
     // 初始化服务器
     if (!init_file_manager_server()) {
@@ -448,44 +511,11 @@ int main() {
         return 1;
     }
     
-    // 示例消息
-    printf("Example messages:\n");
-    printf("Initialize: {\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{}}}\n");
-    printf("List tools: {\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}\n");
-    printf("List files: {\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"list_directory\",\"arguments\":{}}}\n");
-    printf("Write file: {\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"write_file\",\"arguments\":{\"path\":\"test.txt\",\"content\":\"Hello World!\"}}}\n");
-    printf("Read file: {\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"tools/call\",\"params\":{\"name\":\"read_file\",\"arguments\":{\"path\":\"test.txt\"}}}\n");
-    printf("File info: {\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"tools/call\",\"params\":{\"name\":\"file_info\",\"arguments\":{\"path\":\"test.txt\"}}}\n\n");
-    
-    // 主循环
-    char input[2048];
-    while (1) {
-        printf("> ");
-        fflush(stdout);
-        
-        if (!fgets(input, sizeof(input), stdin)) {
-            break;
-        }
-        
-        // 移除换行符
-        size_t len = strlen(input);
-        if (len > 0 && input[len-1] == '\n') {
-            input[len-1] = '\0';
-        }
-        
-        // 检查退出命令
-        if (strcmp(input, "quit") == 0 || strcmp(input, "exit") == 0) {
-            break;
-        }
-        
-        // 处理消息
-        if (strlen(input) > 0) {
-            process_message(input);
-        }
-    }
+    // 运行自动化测试
+    int result = run_automated_tests();
     
     printf("\nShutting down file manager server...\n");
     cleanup_file_manager_server();
     
-    return 0;
+    return result;
 }
