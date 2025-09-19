@@ -1,2 +1,3 @@
 test_protocol
 *.o
+sdk/mcp/test/build

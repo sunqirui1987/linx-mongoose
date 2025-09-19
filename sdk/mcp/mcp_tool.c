@@ -18,6 +18,11 @@ mcp_tool_t* mcp_tool_create(const char* name, const char* description,
         return NULL;
     }
     
+    // 检查名称不能为空字符串
+    if (strlen(name) == 0) {
+        return NULL;
+    }
+    
     // 检查名称和描述长度
     if (strlen(name) >= MCP_MAX_NAME_LENGTH || strlen(description) >= MCP_MAX_DESCRIPTION_LENGTH) {
         return NULL;
@@ -36,7 +41,17 @@ mcp_tool_t* mcp_tool_create(const char* name, const char* description,
     strncpy(tool->description, description, MCP_MAX_DESCRIPTION_LENGTH - 1);
     tool->description[MCP_MAX_DESCRIPTION_LENGTH - 1] = '\0';
     
-    tool->properties = properties;
+    // 如果没有提供属性列表，创建一个空的属性列表
+    if (properties == NULL) {
+        tool->properties = mcp_property_list_create();
+        if (!tool->properties) {
+            free(tool);
+            return NULL;
+        }
+    } else {
+        tool->properties = properties;
+    }
+    
     tool->callback = callback;
     tool->user_only = false;
     
