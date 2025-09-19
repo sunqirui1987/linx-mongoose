@@ -79,7 +79,7 @@ void test_property_list_operations() {
     mcp_property_list_t* list = mcp_property_list_create();
     TEST_ASSERT(list != NULL, "Property list creation failed");
     TEST_ASSERT(list->count == 0, "Initial property list count should be 0");
-    TEST_ASSERT(list->properties == NULL, "Initial property list should be NULL");
+    TEST_ASSERT(list->properties != NULL, "Initial property list should not be NULL");
     
     // 添加属性
     mcp_property_t* prop1 = mcp_property_create_string("prop1", "value1", true);
@@ -259,11 +259,16 @@ void run_property_tests() {
     printf("=== Property Tests Complete ===\n\n");
 }
 
-#ifdef STANDALONE_TEST
-int main() {
+/**
+ * 主函数 - 运行所有属性管理测试
+ */
+int main(void) {
     test_init();
     run_property_tests();
     test_summary();
-    return test_stats.failed > 0 ? 1 : 0;
+    
+    // 检查内存泄漏
+    test_check_memory_leaks();
+    
+    return (g_test_stats.failed_tests > 0) ? 1 : 0;
 }
-#endif

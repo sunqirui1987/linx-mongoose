@@ -199,3 +199,17 @@ void run_types_tests(void) {
     
     TEST_SUITE_END("MCP Types Tests");
 }
+
+/**
+ * 主函数
+ */
+int main(void) {
+    test_init();
+    run_types_tests();
+    test_summary();
+    
+    // 检查内存泄漏
+    test_check_memory_leaks();
+    
+    return (g_test_stats.failed_tests > 0) ? 1 : 0;
+}

@@ -316,3 +316,17 @@ void run_utils_tests(void) {
     
     TEST_SUITE_END("MCP Utils Tests");
 }
+
+/**
+ * 主函数 - 运行所有工具函数测试
+ */
+int main(void) {
+    test_init();
+    run_utils_tests();
+    test_summary();
+    
+    // 检查内存泄漏
+    test_check_memory_leaks();
+    
+    return (g_test_stats.failed_tests > 0) ? 1 : 0;
+}

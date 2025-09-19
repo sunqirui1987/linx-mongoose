@@ -25,8 +25,17 @@ static const char base64_chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqr
  */
 char* mcp_base64_encode(const char* data, size_t data_len) {
     // 参数验证
-    if (!data || data_len == 0) {
+    if (!data) {
         return NULL;
+    }
+    
+    // 处理空数据的情况
+    if (data_len == 0) {
+        char* empty_result = malloc(1);
+        if (empty_result) {
+            empty_result[0] = '\0';
+        }
+        return empty_result;
     }
     
     // 计算编码后的长度：每3个字节编码为4个字符

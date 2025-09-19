@@ -66,25 +66,25 @@ mcp_property_t* mcp_property_create_string(const char* name, const char* default
  * 设置布尔属性值
  * @param prop 属性指针
  * @param value 要设置的值
- * @return 成功返回true，失败返回false
+ * @return 成功返回0，失败返回非0
  */
-bool mcp_property_set_bool_value(mcp_property_t* prop, bool value);
+int mcp_property_set_bool_value(mcp_property_t* prop, bool value);
 
 /**
  * 设置整数属性值
  * @param prop 属性指针
  * @param value 要设置的值
- * @return 成功返回true，失败返回false
+ * @return 成功返回0，失败返回非0
  */
-bool mcp_property_set_int_value(mcp_property_t* prop, int value);
+int mcp_property_set_int_value(mcp_property_t* prop, int value);
 
 /**
  * 设置字符串属性值
  * @param prop 属性指针
  * @param value 要设置的值
- * @return 成功返回true，失败返回false
+ * @return 成功返回0，失败返回非0
  */
-bool mcp_property_set_string_value(mcp_property_t* prop, const char* value);
+int mcp_property_set_string_value(mcp_property_t* prop, const char* value);
 
 /**
  * 获取布尔属性值

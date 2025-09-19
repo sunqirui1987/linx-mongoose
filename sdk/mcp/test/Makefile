@@ -41,9 +41,9 @@ $(BUILD_DIR):
 	@mkdir -p $(BUILD_DIR)
 
 # 编译测试程序
-$(BUILD_DIR)/test_%: test_%.c $(MCP_SOURCES) $(CJSON_SOURCES) | $(BUILD_DIR)
+$(BUILD_DIR)/test_%: test_%.c $(MCP_SOURCES) $(CJSON_SOURCES) test_framework.c | $(BUILD_DIR)
 	@echo "编译测试: $@"
-	$(CC) $(CFLAGS) -o $@ $< $(MCP_SOURCES) $(CJSON_SOURCES) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $< test_framework.c $(MCP_SOURCES) $(CJSON_SOURCES) $(LDFLAGS)
 
 # 编译集成测试
 $(BUILD_DIR)/test_integration: test_integration.c $(MCP_SOURCES) $(CJSON_SOURCES) | $(BUILD_DIR)

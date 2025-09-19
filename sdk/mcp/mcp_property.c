@@ -14,7 +14,7 @@
  */
 mcp_property_t* mcp_property_create_boolean(const char* name, bool default_value, bool has_default) {
     // 检查参数有效性
-    if (!name || strlen(name) >= MCP_MAX_NAME_LENGTH) {
+    if (!name || strlen(name) == 0 || strlen(name) >= MCP_MAX_NAME_LENGTH) {
         return NULL;
     }
     
@@ -47,7 +47,7 @@ mcp_property_t* mcp_property_create_boolean(const char* name, bool default_value
 mcp_property_t* mcp_property_create_integer(const char* name, int default_value, bool has_default,
                                            bool has_range, int min_value, int max_value) {
     // 检查参数有效性
-    if (!name || strlen(name) >= MCP_MAX_NAME_LENGTH) {
+    if (!name || strlen(name) == 0 || strlen(name) >= MCP_MAX_NAME_LENGTH) {
         return NULL;
     }
     
@@ -89,7 +89,7 @@ mcp_property_t* mcp_property_create_integer(const char* name, int default_value,
  */
 mcp_property_t* mcp_property_create_string(const char* name, const char* default_value, bool has_default) {
     // 检查参数有效性
-    if (!name || strlen(name) >= MCP_MAX_NAME_LENGTH) {
+    if (!name || strlen(name) == 0 || strlen(name) >= MCP_MAX_NAME_LENGTH) {
         return NULL;
     }
     
@@ -124,43 +124,43 @@ mcp_property_t* mcp_property_create_string(const char* name, const char* default
 /**
  * 设置布尔属性值
  */
-bool mcp_property_set_bool_value(mcp_property_t* prop, bool value) {
+int mcp_property_set_bool_value(mcp_property_t* prop, bool value) {
     // 检查参数有效性
     if (!prop || prop->type != MCP_PROPERTY_TYPE_BOOLEAN) {
-        return false;
+        return -1;
     }
     
     // 设置值
     prop->value.bool_val = value;
-    return true;
+    return 0;
 }
 
 /**
  * 设置整数属性值
  */
-bool mcp_property_set_int_value(mcp_property_t* prop, int value) {
+int mcp_property_set_int_value(mcp_property_t* prop, int value) {
     // 检查参数有效性
     if (!prop || prop->type != MCP_PROPERTY_TYPE_INTEGER) {
-        return false;
+        return -1;
     }
     
     // 检查范围
     if (prop->has_range && (value < prop->min_value || value > prop->max_value)) {
-        return false;
+        return -2;
     }
     
     // 设置值
     prop->value.int_val = value;
-    return true;
+    return 0;
 }
 
 /**
  * 设置字符串属性值
  */
-bool mcp_property_set_string_value(mcp_property_t* prop, const char* value) {
+int mcp_property_set_string_value(mcp_property_t* prop, const char* value) {
     // 检查参数有效性
     if (!prop || prop->type != MCP_PROPERTY_TYPE_STRING || !value) {
-        return false;
+        return -1;
     }
     
     // 释放旧值
@@ -170,7 +170,7 @@ bool mcp_property_set_string_value(mcp_property_t* prop, const char* value) {
     
     // 设置新值
     prop->value.string_val = mcp_strdup(value);
-    return prop->value.string_val != NULL;
+    return prop->value.string_val != NULL ? 0 : -2;
 }
 
 /**
