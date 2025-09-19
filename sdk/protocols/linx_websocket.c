@@ -256,7 +256,7 @@ void linx_websocket_event_handler(struct mg_connection* conn, int ev, void* ev_d
 
                 cJSON_Delete(json);
             } else if (wm->flags & WEBSOCKET_OP_BINARY) {
-                printf("[WebSocket] Binary message\n");
+               
                 /* Binary message - parse as audio data based on protocol version */
                 if (ws_protocol->base.on_incoming_audio) {
                     if (ws_protocol->version == 2) {
@@ -403,14 +403,23 @@ bool linx_websocket_send_audio(linx_protocol_t* protocol, linx_audio_stream_pack
     linx_websocket_protocol_t* ws_protocol = (linx_websocket_protocol_t*)protocol;
     
     if (!ws_protocol || !ws_protocol->conn || !ws_protocol->connected || !packet) {
+        printf("Linx: Invalid websocket protocol\n");
         return false;
     }
+    printf("Linx: Sending audio packet\n");
+    printf("   - Sample Rate: %d\n", packet->sample_rate);
+    printf("   - Frame Duration: %d\n", packet->frame_duration);
+    printf("   - Timestamp: %u\n", packet->timestamp);
+    printf("   - Payload Size: %zu\n", packet->payload_size);
+    printf("   - version: %d\n",ws_protocol->version);
     
     if (ws_protocol->version == 2) {
+
         /* Use binary protocol v2 */
         size_t total_size = sizeof(linx_binary_protocol2_t) + packet->payload_size;
         uint8_t* buffer = malloc(total_size);
         if (!buffer) {
+            printf("❌ WebSocket发送失败: 内存分配失败 (协议v2)\n");
             return false;
         }
         
@@ -422,15 +431,22 @@ bool linx_websocket_send_audio(linx_protocol_t* protocol, linx_audio_stream_pack
         bp2->payload_size = htonl(packet->payload_size);
         memcpy(bp2->payload, packet->payload, packet->payload_size);
         
-        mg_ws_send(ws_protocol->conn, buffer, total_size, WEBSOCKET_OP_BINARY);
+        int send_result = mg_ws_send(ws_protocol->conn, buffer, total_size, WEBSOCKET_OP_BINARY);
         free(buffer);
         
-        return true;
+        if (send_result > 0) {
+            printf("✅ WebSocket发送成功: %zu 字节 (协议v2, 总大小: %zu)\n", packet->payload_size, total_size);
+        } else {
+            printf("❌ WebSocket发送失败: mg_ws_send返回 %d (协议v2)\n", send_result);
+        }
+        
+        return send_result > 0;
     } else if (ws_protocol->version == 3) {
         /* Use binary protocol v3 */
         size_t total_size = sizeof(linx_binary_protocol3_t) + packet->payload_size;
         uint8_t* buffer = malloc(total_size);
         if (!buffer) {
+            printf("❌ WebSocket发送失败: 内存分配失败 (协议v3)\n");
             return false;
         }
         
@@ -440,13 +456,27 @@ bool linx_websocket_send_audio(linx_protocol_t* protocol, linx_audio_stream_pack
         bp3->payload_size = htons(packet->payload_size);
         memcpy(bp3->payload, packet->payload, packet->payload_size);
         
-        mg_ws_send(ws_protocol->conn, buffer, total_size, WEBSOCKET_OP_BINARY);
+        int send_result = mg_ws_send(ws_protocol->conn, buffer, total_size, WEBSOCKET_OP_BINARY);
         free(buffer);
         
-        return true;
+        if (send_result > 0) {
+            printf("✅ WebSocket发送成功: %zu 字节 (协议v3, 总大小: %zu)\n", packet->payload_size, total_size);
+        } else {
+            printf("❌ WebSocket发送失败: mg_ws_send返回 %d (协议v3)\n", send_result);
+        }
+        
+        return send_result > 0;
     } else {
         /* Fallback for unsupported protocol versions - send raw payload */
-        return mg_ws_send(ws_protocol->conn, packet->payload, packet->payload_size, WEBSOCKET_OP_BINARY) > 0;
+        int send_result = mg_ws_send(ws_protocol->conn, packet->payload, packet->payload_size, WEBSOCKET_OP_BINARY);
+        
+        if (send_result > 0) {
+            printf("✅ WebSocket发送成功: %zu 字节 (原始数据, 协议v%d)\n", packet->payload_size, ws_protocol->version);
+        } else {
+            printf("❌ WebSocket发送失败: mg_ws_send返回 %d (原始数据, 协议v%d)\n", send_result, ws_protocol->version);
+        }
+        
+        return send_result > 0;
     }
 }
 
@@ -454,9 +484,10 @@ bool linx_websocket_send_text(linx_protocol_t* protocol, const char* text) {
     linx_websocket_protocol_t* ws_protocol = (linx_websocket_protocol_t*)protocol;
     
     if (!ws_protocol || !ws_protocol->conn || !ws_protocol->connected || !text) {
+        printf("❌ WebSocket发送文本失败: 无效的协议或连接或未连接或文本为空\n");
         return false;
     }
-    
+    printf("🚀 WebSocket发送文本: %s\n", text);
     mg_ws_send(ws_protocol->conn, text, strlen(text), WEBSOCKET_OP_TEXT);
     return true;
 }
@@ -587,10 +618,10 @@ char* linx_websocket_get_hello_message(linx_websocket_protocol_t* ws_protocol) {
     
     /* Add audio_params object */
     cJSON* audio_params = cJSON_CreateObject();
-    cJSON_AddStringToObject(audio_params, "format", "opus");
-    cJSON_AddNumberToObject(audio_params, "sample_rate", 16000);
-    cJSON_AddNumberToObject(audio_params, "channels", 1);
-    cJSON_AddNumberToObject(audio_params, "frame_duration", 60);
+    cJSON_AddStringToObject(audio_params, "format", LINX_WEBSOCKET_AUDIO_FORMAT);
+    cJSON_AddNumberToObject(audio_params, "sample_rate", LINX_WEBSOCKET_AUDIO_SAMPLE_RATE);
+    cJSON_AddNumberToObject(audio_params, "channels", LINX_WEBSOCKET_AUDIO_CHANNELS);
+    cJSON_AddNumberToObject(audio_params, "frame_duration", LINX_WEBSOCKET_AUDIO_FRAME_DURATION);
     cJSON_AddItemToObject(root, "audio_params", audio_params);
     
     char* json_string = cJSON_PrintUnformatted(root);

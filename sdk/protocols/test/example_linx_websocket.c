@@ -212,8 +212,9 @@ static void on_websocket_message(const cJSON* root, void* user_data) {
                     set_session_id(session_id->valuestring);
                     printf("✅ 会话建立，ID: %s\n", session_id->valuestring);
                     
-                    // 开始监听
+                    // 开始监听 - 修复：传递正确的参数
                     set_listen_state("start");
+                    linx_protocol_send_start_listening((linx_protocol_t*)g_ws_protocol, LINX_LISTENING_MODE_AUTO_STOP);
                     printf("🎤 开始语音监听\n");
                 }
             }
@@ -225,10 +226,14 @@ static void on_websocket_message(const cJSON* root, void* user_data) {
                     printf("🔊 TTS状态: %s\n", state->valuestring);
                     
                     if (strcmp(state->valuestring, "start") == 0) {
+                        // TTS开始播放，停止监听避免回音
                         set_listen_state("stop");
+                        linx_protocol_send_stop_listening((linx_protocol_t*)g_ws_protocol);
                         printf("🔇 停止监听（TTS播放中）\n");
                     } else if (strcmp(state->valuestring, "stop") == 0) {
+                        // TTS播放结束，重新开始监听
                         set_listen_state("start");
+                        linx_protocol_send_start_listening((linx_protocol_t*)g_ws_protocol, LINX_LISTENING_MODE_AUTO_STOP);
                         printf("🎤 恢复语音监听\n");
                     }
                 }
@@ -310,6 +315,9 @@ static void* audio_record_thread(void* arg) {
         //printf("🎤 音频文件发送线程启动》〉》〉》〉》〉》〉》\n");
         
         if (should_send && g_ws_protocol) {
+            //等一会再发送
+            usleep(6000000); // 6000ms
+
             printf("📤 开始发送音频文件...\n");
             
             // 重置文件指针到开头
@@ -340,12 +348,28 @@ static void* audio_record_thread(void* arg) {
                 // 创建音频包并发送
                 linx_audio_stream_packet_t* packet = linx_audio_stream_packet_create(bytes_read);
                 if (packet) {
-                    packet->sample_rate = 16000;
-                    packet->frame_duration = 60;
+                    packet->sample_rate = LINX_WEBSOCKET_AUDIO_SAMPLE_RATE;
+                    packet->frame_duration = LINX_WEBSOCKET_AUDIO_FRAME_DURATION;
                     packet->timestamp = time(NULL) * 1000;
                     
                     // 复制从文件读取的数据
                     memcpy(packet->payload, buffer, bytes_read);
+                    
+                    // 打印音频数据信息
+                    printf("📊 音频包信息:\n");
+                    printf("   - 采样率: %d Hz\n", packet->sample_rate);
+                    printf("   - 帧时长: %d ms\n", packet->frame_duration);
+                    printf("   - 时间戳: %llu\n", packet->timestamp);
+                    printf("   - 数据大小: %zu 字节\n", packet->payload_size);
+                    
+                    // 打印前32字节的十六进制数据（如果数据足够长）
+                    size_t print_size = packet->payload_size > 32 ? 32 : packet->payload_size;
+                    printf("   - 数据内容 (前%zu字节): ", print_size);
+                    for (size_t i = 0; i < print_size; i++) {
+                        printf("%02X ", ((unsigned char*)packet->payload)[i]);
+                        if ((i + 1) % 16 == 0) printf("\n                                ");
+                    }
+                    printf("\n");
                     
                     if (linx_websocket_send_audio((linx_protocol_t*)g_ws_protocol, packet)) {
                         total_sent += packet->payload_size;
@@ -357,7 +381,7 @@ static void* audio_record_thread(void* arg) {
                     linx_audio_stream_packet_destroy(packet);
                 }
                 
-                usleep(60000); // 60ms，对应音频帧间隔
+                usleep(LINX_WEBSOCKET_AUDIO_FRAME_DURATION * 1000); // 音频帧间隔，转换为微秒
             }
             
             printf("✅ 音频文件发送完成，总计发送: %zu 字节\n", total_sent);
@@ -369,7 +393,7 @@ static void* audio_record_thread(void* arg) {
             }
         } else {
             // 如果不满足发送条件，短暂等待
-            usleep(100000); // 100ms
+            usleep(1000000); // 1000ms
         }
     }
     
@@ -446,7 +470,8 @@ int main() {
 
     // 2. 创建 WebSocket 协议实例
     printf("2️⃣ 创建 WebSocket 协议实例...\n");
-    
+    //"ws://114.66.50.145:8000/xiaozhi/v1/",// "
+
     linx_websocket_config_t config = {
         .url = "ws://114.66.50.145:8000/xiaozhi/v1/",// "ws://xrobo-io.qiniuapi.com/v1/ws/",
         .auth_token = "test-token",

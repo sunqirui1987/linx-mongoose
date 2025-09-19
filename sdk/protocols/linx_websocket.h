@@ -9,6 +9,12 @@
 extern "C" {
 #endif
 
+/* 音频参数配置常量 */
+#define LINX_WEBSOCKET_AUDIO_FORMAT         "opus"
+#define LINX_WEBSOCKET_AUDIO_SAMPLE_RATE    16000
+#define LINX_WEBSOCKET_AUDIO_CHANNELS       1
+#define LINX_WEBSOCKET_AUDIO_FRAME_DURATION 60
+
 /* WebSocket 协议实现结构体 */
 typedef struct {
     linx_protocol_t base;           // 基础协议结构体
