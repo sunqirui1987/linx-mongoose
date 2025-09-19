@@ -338,10 +338,17 @@ bool init_calculator_server() {
 
 // 清理服务器
 void cleanup_calculator_server() {
+    printf("DEBUG: cleanup_calculator_server() called\n");
     if (g_server) {
+        printf("DEBUG: g_server is not NULL, calling mcp_server_destroy()\n");
         mcp_server_destroy(g_server);
+        printf("DEBUG: mcp_server_destroy() completed\n");
         g_server = NULL;
+        printf("DEBUG: g_server set to NULL\n");
+    } else {
+        printf("DEBUG: g_server is already NULL\n");
     }
+    printf("DEBUG: cleanup_calculator_server() finished\n");
 }
 
 // 处理输入消息

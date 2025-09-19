@@ -49,7 +49,12 @@ mcp_tool_t* mcp_tool_create(const char* name, const char* description,
             return NULL;
         }
     } else {
-        tool->properties = properties;
+        // 创建属性列表的深拷贝，避免所有权问题
+        tool->properties = mcp_property_list_clone(properties);
+        if (!tool->properties) {
+            free(tool);
+            return NULL;
+        }
     }
     
     tool->callback = callback;
@@ -77,6 +82,7 @@ void mcp_tool_destroy(mcp_tool_t* tool) {
         
         // 释放工具本身
         free(tool);
+        tool = NULL;  // 防止野指针
     }
 }
 

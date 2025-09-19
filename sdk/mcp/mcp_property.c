@@ -328,7 +328,49 @@ void mcp_property_list_destroy(mcp_property_list_t* list) {
     memset(list->properties, 0, sizeof(list->properties));
     
     // 释放列表本身
+    printf("[MCP] mcp_property_list_destroy()\n");
     free(list);
+    printf("[MCP] mcp_property_list_destroy() list = NULL\n");
+    list = NULL;
+}
+
+/**
+ * 克隆属性列表（深拷贝）
+ */
+mcp_property_list_t* mcp_property_list_clone(const mcp_property_list_t* list) {
+    if (!list) {
+        return NULL;
+    }
+    
+    // 创建新的属性列表
+    mcp_property_list_t* cloned_list = mcp_property_list_create();
+    if (!cloned_list) {
+        return NULL;
+    }
+    
+    // 复制所有属性
+    for (size_t i = 0; i < list->count; i++) {
+        const mcp_property_t* src_prop = &list->properties[i];
+        mcp_property_t* dest_prop = &cloned_list->properties[cloned_list->count];
+        
+        // 复制基本属性信息
+        memcpy(dest_prop, src_prop, sizeof(mcp_property_t));
+        
+        // 如果是字符串类型，需要深拷贝字符串值
+        if (src_prop->type == MCP_PROPERTY_TYPE_STRING && src_prop->value.string_val) {
+            dest_prop->value.string_val = mcp_strdup(src_prop->value.string_val);
+            if (!dest_prop->value.string_val) {
+                // 如果字符串复制失败，清理已分配的资源
+                mcp_property_list_destroy(cloned_list);
+                return NULL;
+            }
+        }
+        
+        cloned_list->count++;
+    }
+    
+    printf("[MCP] mcp_property_list_clone() cloned %zu properties\n", cloned_list->count);
+    return cloned_list;
 }
 
 /**

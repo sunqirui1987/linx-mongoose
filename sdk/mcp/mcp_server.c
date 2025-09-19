@@ -59,6 +59,7 @@ void mcp_server_destroy(mcp_server_t* server) {
         server->tool_count = 0;
         memset(server->tools, 0, sizeof(server->tools));
         free(server);
+        server = NULL;
     }
 }
 

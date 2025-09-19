@@ -112,7 +112,8 @@ void test_tool_property_management() {
     // 创建工具
     mcp_tool_t* tool = mcp_tool_create("test_tool", "Test tool", properties, test_callback_with_params);
     TEST_ASSERT(tool != NULL, "Tool creation failed");
-    TEST_ASSERT(tool->properties == properties, "Tool properties not set correctly");
+    TEST_ASSERT(tool->properties != NULL, "Tool properties not set correctly");
+    TEST_ASSERT(tool->properties->count == properties->count, "Tool properties count mismatch");
     
     // 查找属性
     const mcp_property_t* found = mcp_property_list_find(tool->properties, "input");
@@ -142,6 +143,7 @@ void test_tool_property_management() {
     mcp_property_destroy(bool_prop);
     mcp_property_destroy(duplicate_prop);
     mcp_tool_destroy(tool);
+    mcp_property_list_destroy(properties);  // 释放原始的properties列表
 }
 
 // 测试工具执行
@@ -232,6 +234,7 @@ void test_tool_serialization() {
     mcp_property_destroy(str_prop);
     mcp_property_destroy(int_prop);
     mcp_tool_destroy(tool);
+    mcp_property_list_destroy(properties);  // 释放原始的properties列表
 }
 
 // 测试工具验证
@@ -314,6 +317,7 @@ void test_tool_edge_cases() {
     // 清理
     mcp_property_destroy(prop);
     mcp_tool_destroy(tool);
+    mcp_property_list_destroy(properties);  // 释放原始的properties列表
 }
 
 // ... existing code ...

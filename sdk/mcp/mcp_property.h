@@ -135,6 +135,13 @@ mcp_property_list_t* mcp_property_list_create(void);
 void mcp_property_list_destroy(mcp_property_list_t* list);
 
 /**
+ * 克隆属性列表（深拷贝）
+ * @param list 要克隆的属性列表指针
+ * @return 克隆的属性列表指针，失败返回NULL
+ */
+mcp_property_list_t* mcp_property_list_clone(const mcp_property_list_t* list);
+
+/**
  * 向属性列表添加属性
  * @param list 属性列表指针
  * @param prop 要添加的属性
