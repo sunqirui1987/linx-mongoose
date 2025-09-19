@@ -162,8 +162,8 @@ void test_server_simple_tool_add() {
     TEST_ASSERT(found->user_only == true, "Tool should be user-only");
     
     // 清理
-    mcp_property_destroy(prop);
-    mcp_property_list_destroy(properties);
+    // 注意：属性和属性列表的所有权已转移给工具，不需要手动释放
+    // 服务器销毁时会自动清理所有工具及其属性
     mcp_server_destroy(server);
 }
 
@@ -239,8 +239,8 @@ void test_server_tool_call() {
         last_sent_message = NULL;
     }
     
-    mcp_property_destroy(prop);
-    mcp_property_list_destroy(properties);
+    // 注意：属性和属性列表的所有权已转移给工具，不需要手动释放
+    // 服务器销毁时会自动清理所有工具及其属性
     mcp_server_destroy(server);
 }
 
