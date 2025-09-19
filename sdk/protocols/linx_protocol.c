@@ -76,23 +76,7 @@ void linx_protocol_set_on_incoming_json(linx_protocol_t* protocol,
     }
 }
 
-void linx_protocol_set_on_audio_channel_opened(linx_protocol_t* protocol, 
-                                               linx_on_audio_channel_opened_cb_t callback, 
-                                               void* user_data) {
-    if (protocol) {
-        protocol->on_audio_channel_opened = callback;
-        protocol->user_data = user_data;
-    }
-}
 
-void linx_protocol_set_on_audio_channel_closed(linx_protocol_t* protocol, 
-                                               linx_on_audio_channel_closed_cb_t callback, 
-                                               void* user_data) {
-    if (protocol) {
-        protocol->on_audio_channel_closed = callback;
-        protocol->user_data = user_data;
-    }
-}
 
 void linx_protocol_set_on_network_error(linx_protocol_t* protocol, 
                                         linx_on_network_error_cb_t callback, 
@@ -127,26 +111,6 @@ bool linx_protocol_start(linx_protocol_t* protocol) {
         return false;
     }
     return protocol->vtable->start(protocol);
-}
-
-bool linx_protocol_open_audio_channel(linx_protocol_t* protocol) {
-    if (!protocol || !protocol->vtable || !protocol->vtable->open_audio_channel) {
-        return false;
-    }
-    return protocol->vtable->open_audio_channel(protocol);
-}
-
-void linx_protocol_close_audio_channel(linx_protocol_t* protocol) {
-    if (protocol && protocol->vtable && protocol->vtable->close_audio_channel) {
-        protocol->vtable->close_audio_channel(protocol);
-    }
-}
-
-bool linx_protocol_is_audio_channel_opened(const linx_protocol_t* protocol) {
-    if (!protocol || !protocol->vtable || !protocol->vtable->is_audio_channel_opened) {
-        return false;
-    }
-    return protocol->vtable->is_audio_channel_opened(protocol);
 }
 
 bool linx_protocol_send_audio(linx_protocol_t* protocol, linx_audio_stream_packet_t* packet) {

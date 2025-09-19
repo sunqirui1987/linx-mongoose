@@ -56,8 +56,6 @@ typedef struct linx_protocol linx_protocol_t;
 /* 回调函数类型定义 */
 typedef void (*linx_on_incoming_audio_cb_t)(linx_audio_stream_packet_t* packet, void* user_data);      // 接收音频回调
 typedef void (*linx_on_incoming_json_cb_t)(const cJSON* root, void* user_data);                       // 接收JSON回调
-typedef void (*linx_on_audio_channel_opened_cb_t)(void* user_data);                                   // 音频通道打开回调
-typedef void (*linx_on_audio_channel_closed_cb_t)(void* user_data);                                   // 音频通道关闭回调
 typedef void (*linx_on_network_error_cb_t)(const char* message, void* user_data);                     // 网络错误回调
 typedef void (*linx_on_connected_cb_t)(void* user_data);                                              // 连接成功回调
 typedef void (*linx_on_disconnected_cb_t)(void* user_data);                                           // 连接断开回调
@@ -66,8 +64,7 @@ typedef void (*linx_on_disconnected_cb_t)(void* user_data);                     
 typedef struct {
     bool (*start)(linx_protocol_t* protocol);                                                          // 启动协议
     bool (*open_audio_channel)(linx_protocol_t* protocol);                                             // 打开音频通道
-    void (*close_audio_channel)(linx_protocol_t* protocol);                                            // 关闭音频通道
-    bool (*is_audio_channel_opened)(const linx_protocol_t* protocol);                                  // 检查音频通道是否打开
+    void (*close_audio_channel)(linx_protocol_t* protocol);                                            // 关闭音频通道                               // 检查音频通道是否打开
     bool (*send_audio)(linx_protocol_t* protocol, linx_audio_stream_packet_t* packet);                 // 发送音频数据
     bool (*send_text)(linx_protocol_t* protocol, const char* text);                                    // 发送文本数据
     void (*destroy)(linx_protocol_t* protocol);                                                        // 销毁协议实例
@@ -80,8 +77,6 @@ struct linx_protocol {
     /* 回调函数 */
     linx_on_incoming_json_cb_t on_incoming_json;                    // JSON消息接收回调
     linx_on_incoming_audio_cb_t on_incoming_audio;                  // 音频数据接收回调
-    linx_on_audio_channel_opened_cb_t on_audio_channel_opened;      // 音频通道打开回调
-    linx_on_audio_channel_closed_cb_t on_audio_channel_closed;      // 音频通道关闭回调
     linx_on_network_error_cb_t on_network_error;                    // 网络错误回调
     linx_on_connected_cb_t on_connected;                            // 连接成功回调
     linx_on_disconnected_cb_t on_disconnected;                      // 连接断开回调
@@ -115,13 +110,7 @@ void linx_protocol_set_on_incoming_json(linx_protocol_t* protocol,
                                         linx_on_incoming_json_cb_t callback, 
                                         void* user_data);                        // 设置JSON接收回调
 
-void linx_protocol_set_on_audio_channel_opened(linx_protocol_t* protocol, 
-                                               linx_on_audio_channel_opened_cb_t callback, 
-                                               void* user_data);                 // 设置音频通道打开回调
 
-void linx_protocol_set_on_audio_channel_closed(linx_protocol_t* protocol, 
-                                               linx_on_audio_channel_closed_cb_t callback, 
-                                               void* user_data);                 // 设置音频通道关闭回调
 
 void linx_protocol_set_on_network_error(linx_protocol_t* protocol, 
                                         linx_on_network_error_cb_t callback, 
@@ -136,10 +125,7 @@ void linx_protocol_set_on_disconnected(linx_protocol_t* protocol,
                                        void* user_data);                         // 设置连接断开回调
 
 /* 协议操作函数 */
-bool linx_protocol_start(linx_protocol_t* protocol);                                            // 启动协议
-bool linx_protocol_open_audio_channel(linx_protocol_t* protocol);                              // 打开音频通道
-void linx_protocol_close_audio_channel(linx_protocol_t* protocol);                             // 关闭音频通道
-bool linx_protocol_is_audio_channel_opened(const linx_protocol_t* protocol);                   // 检查音频通道是否打开
+bool linx_protocol_start(linx_protocol_t* protocol);                                            // 启动协议    
 bool linx_protocol_send_audio(linx_protocol_t* protocol, linx_audio_stream_packet_t* packet);  // 发送音频数据
 
 /* 高级消息发送函数 */
