@@ -50,8 +50,14 @@ void mcp_server_destroy(mcp_server_t* server) {
     if (server) {
         // 销毁所有工具
         for (size_t i = 0; i < server->tool_count; i++) {
-            mcp_tool_destroy(server->tools[i]);
+            if (server->tools[i]) {
+                mcp_tool_destroy(server->tools[i]);
+                server->tools[i] = NULL;  // 防止多次释放
+            }
         }
+        // 清理服务器状态
+        server->tool_count = 0;
+        memset(server->tools, 0, sizeof(server->tools));
         free(server);
     }
 }

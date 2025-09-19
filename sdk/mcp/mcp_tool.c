@@ -66,7 +66,15 @@ void mcp_tool_destroy(mcp_tool_t* tool) {
         // 销毁属性列表
         if (tool->properties) {
             mcp_property_list_destroy(tool->properties);
+            tool->properties = NULL;  // 防止多次释放
         }
+        
+        // 清理工具状态
+        memset(tool->name, 0, sizeof(tool->name));
+        memset(tool->description, 0, sizeof(tool->description));
+        tool->callback = NULL;
+        tool->user_only = false;
+        
         // 释放工具本身
         free(tool);
     }

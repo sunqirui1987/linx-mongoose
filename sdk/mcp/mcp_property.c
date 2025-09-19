@@ -278,7 +278,14 @@ void mcp_property_destroy(mcp_property_t* prop) {
     // 释放字符串值
     if (prop->type == MCP_PROPERTY_TYPE_STRING && prop->value.string_val) {
         free(prop->value.string_val);
+        prop->value.string_val = NULL;  // 防止多次释放
     }
+    
+    // 清理属性状态
+    memset(prop->name, 0, sizeof(prop->name));
+    prop->type = 0;
+    prop->has_default_value = false;
+    prop->has_range = false;
     
     // 释放属性本身
     free(prop);
@@ -310,8 +317,15 @@ void mcp_property_list_destroy(mcp_property_list_t* list) {
         if (list->properties[i].type == MCP_PROPERTY_TYPE_STRING && 
             list->properties[i].value.string_val) {
             free(list->properties[i].value.string_val);
+            list->properties[i].value.string_val = NULL;  // 防止多次释放
         }
+        // 清理属性状态
+        memset(&list->properties[i], 0, sizeof(mcp_property_t));
     }
+    
+    // 清理列表状态
+    list->count = 0;
+    memset(list->properties, 0, sizeof(list->properties));
     
     // 释放列表本身
     free(list);

@@ -111,9 +111,20 @@ mcp_image_content_t* mcp_image_content_create(const char* mime_type, const char*
 void mcp_image_content_destroy(mcp_image_content_t* image) {
     if (image) {
         // 释放MIME类型字符串
-        mcp_free_string(image->mime_type);
+        if (image->mime_type) {
+            free(image->mime_type);
+            image->mime_type = NULL;  // 防止多次释放
+        }
+        
         // 释放编码数据字符串
-        mcp_free_string(image->encoded_data);
+        if (image->encoded_data) {
+            free(image->encoded_data);
+            image->encoded_data = NULL;  // 防止多次释放
+        }
+        
+        // 清理结构体状态
+        memset(image, 0, sizeof(mcp_image_content_t));
+        
         // 释放结构体本身
         free(image);
     }
