@@ -73,25 +73,9 @@ void linx_websocket_destroy_direct(linx_websocket_protocol_t* protocol);
  */
 bool linx_websocket_start(linx_protocol_t* protocol);
 
-/**
- * 打开音频通道
- * @param protocol WebSocket 协议实例
- * @return 成功返回 true，失败返回 false
- */
-bool linx_websocket_open_audio_channel(linx_protocol_t* protocol);
 
-/**
- * 关闭音频通道
- * @param protocol WebSocket 协议实例
- */
-void linx_websocket_close_audio_channel(linx_protocol_t* protocol);
 
-/**
- * 检查音频通道是否已打开
- * @param protocol WebSocket 协议实例
- * @return 已打开返回 true，否则返回 false
- */
-bool linx_websocket_is_audio_channel_opened(const linx_protocol_t* protocol);
+
 
 /**
  * 发送音频数据

@@ -9,9 +9,9 @@
 /* Protocol vtable for WebSocket implementation */
 static const linx_protocol_vtable_t linx_websocket_vtable = {
     .start = linx_websocket_start,
-    .open_audio_channel = linx_websocket_open_audio_channel,
-    .close_audio_channel = linx_websocket_close_audio_channel,
-    .is_audio_channel_opened = linx_websocket_is_audio_channel_opened,
+    .open_audio_channel = NULL,
+    .close_audio_channel = NULL,
+    .is_audio_channel_opened = NULL,
     .send_audio = linx_websocket_send_audio,
     .send_text = linx_websocket_send_text,
     .destroy = linx_websocket_destroy
@@ -335,41 +335,9 @@ bool linx_websocket_start(linx_protocol_t* protocol) {
     return true;
 }
 
-bool linx_websocket_open_audio_channel(linx_protocol_t* protocol) {
-    linx_websocket_protocol_t* ws_protocol = (linx_websocket_protocol_t*)protocol;
-    
-    if (!ws_protocol || !ws_protocol->connected) {
-        return false;
-    }
-    
-    /* For WebSocket, audio channel is considered opened when connection is established */
-    ws_protocol->audio_channel_opened = true;
-    
-    if (ws_protocol->base.on_audio_channel_opened) {
-        ws_protocol->base.on_audio_channel_opened(ws_protocol->base.user_data);
-    }
-    
-    return true;
-}
 
-void linx_websocket_close_audio_channel(linx_protocol_t* protocol) {
-    linx_websocket_protocol_t* ws_protocol = (linx_websocket_protocol_t*)protocol;
-    
-    if (!ws_protocol) {
-        return;
-    }
-    
-    ws_protocol->audio_channel_opened = false;
-    
-    if (ws_protocol->base.on_audio_channel_closed) {
-        ws_protocol->base.on_audio_channel_closed(ws_protocol->base.user_data);
-    }
-}
 
-bool linx_websocket_is_audio_channel_opened(const linx_protocol_t* protocol) {
-    const linx_websocket_protocol_t* ws_protocol = (const linx_websocket_protocol_t*)protocol;
-    return ws_protocol ? ws_protocol->audio_channel_opened : false;
-}
+
 
 bool linx_websocket_send_audio(linx_protocol_t* protocol, linx_audio_stream_packet_t* packet) {
     linx_websocket_protocol_t* ws_protocol = (linx_websocket_protocol_t*)protocol;

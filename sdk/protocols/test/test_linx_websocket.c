@@ -287,17 +287,9 @@ void test_websocket_vtable_calls(void) {
         bool result = linx_protocol_start(protocol);
         TEST_ASSERT(result == false, "未配置完整时启动返回false");
         
-        /* 测试打开音频通道 */
-        result = linx_protocol_open_audio_channel(protocol);
-        TEST_ASSERT(result == false, "未连接时打开音频通道返回false");
+        /* 音频通道开关函数已移除，跳过相关测试 */
         
-        /* 测试关闭音频通道 */
-        linx_protocol_close_audio_channel(protocol);
-        TEST_ASSERT(true, "关闭音频通道正常");
-        
-        /* 测试检查音频通道状态 */
-        result = linx_protocol_is_audio_channel_opened(protocol);
-        TEST_ASSERT(result == false, "音频通道状态检查正确");
+        /* 音频通道状态检查函数已移除，跳过相关测试 */
         
         /* 测试发送音频数据 */
         linx_audio_stream_packet_t* packet = linx_audio_stream_packet_create(1024);
