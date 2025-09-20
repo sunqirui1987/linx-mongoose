@@ -28,14 +28,19 @@ INCLUDES = -I$(SDK_DIR) \
 # 库搜索路径
 LIB_PATHS = -L$(SDK_DIR)/lib \
             -L/usr/local/lib \
-            -L/opt/homebrew/lib
+            -L/opt/homebrew/lib \
+            -L/opt/homebrew/Cellar/opus/1.5.2/lib \
+            -L/opt/homebrew/Cellar/fftw/3.3.10_2/lib
 
-# 库链接 (按依赖顺序)
+# 库链接 (按依赖顺序 - 依赖库必须在使用它们的库之后)
 LIBS = $(LIB_PATHS) \
        -llinx_sdk \
-       $(shell pkg-config --libs opus json-c libcurl) \
+       -lmongoose \
        -lportaudio \
        -lsndfile \
+       -lopus \
+       -ljson-c \
+       -lcurl \
        -lfftw3 \
        -lssl \
        -lcrypto
@@ -71,7 +76,7 @@ $(BIN_DIR):
 # 生成可执行文件
 $(TARGET): $(OBJECTS) | $(BIN_DIR)
 	@echo "链接 $(TARGET)..."
-	$(CC) $(OBJECTS) $(LIBS) $(LDFLAGS) -o $(BIN_DIR)/$(TARGET)
+	$(CC) $(OBJECTS) -L../sdk/lib -llinx_sdk -L/opt/homebrew/Cellar/opus/1.5.2/lib -lopus -L/opt/homebrew/lib -lmongoose -ljson-c -lcurl -lportaudio -lsndfile -L/opt/homebrew/Cellar/fftw/3.3.10_2/lib -lfftw3 -lssl -lcrypto $(LDFLAGS) -o $(BIN_DIR)/$(TARGET)
 	@echo "✓ 编译完成: $(BIN_DIR)/$(TARGET)"
 	@echo ""
 	@echo "使用方法:"
