@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.10)
 
+# 添加 cmake 模块路径
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
+
+# 查找 Mongoose 库
+find_package(Mongoose REQUIRED)
 
 # 协议库源文件
 set(PROTOCOLS_SOURCES
@@ -34,7 +39,7 @@ target_compile_options(linx_protocols PRIVATE
 # 链接依赖
 target_link_libraries(linx_protocols
     PUBLIC
-        Mongoose::mongoose
+        Mongoose::Mongoose
         cjson_static
         linx_log
 )
