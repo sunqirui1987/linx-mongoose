@@ -5,6 +5,7 @@
 #include <arpa/inet.h>
 #include <mongoose.h>
 #include "../cjson/cJSON.h"
+#include "../log/linx_log.h"
 
 /* Internal helper function declarations */
 static void linx_websocket_protocol_destroy(linx_websocket_protocol_t* ws_protocol);
@@ -29,12 +30,16 @@ static const linx_protocol_vtable_t linx_websocket_vtable = {
 
 /* WebSocket protocol creation and destruction */
 linx_websocket_protocol_t* linx_websocket_protocol_create(const linx_websocket_config_t* config) {
+    LOG_DEBUG("Creating WebSocket protocol with config: %p", config);
+    
     if (!config) {
+        LOG_ERROR("WebSocket protocol creation failed: config is NULL");
         return NULL;
     }
     
     linx_websocket_protocol_t* ws_protocol = malloc(sizeof(linx_websocket_protocol_t));
     if (!ws_protocol) {
+        LOG_ERROR("WebSocket protocol creation failed: memory allocation failed");
         return NULL;
     }
     
@@ -58,20 +63,28 @@ linx_websocket_protocol_t* linx_websocket_protocol_create(const linx_websocket_c
     ws_protocol->device_id = NULL;
     ws_protocol->client_id = NULL;
     
+    LOG_DEBUG("WebSocket protocol basic initialization completed");
+    
     /* Configure server connection */
     if (config->url) {
+        LOG_DEBUG("Configuring WebSocket with URL: %s", config->url);
         if (!linx_websocket_protocol_set_server_url(ws_protocol, config->url)) {
+            LOG_ERROR("Failed to set WebSocket server URL");
             linx_websocket_protocol_destroy(ws_protocol);
             free(ws_protocol);
             return NULL;
         }
     } else if (config->host && config->path) {
+        LOG_DEBUG("Configuring WebSocket with host: %s, port: %d, path: %s", 
+                  config->host, config->port, config->path);
         if (!linx_websocket_protocol_set_server(ws_protocol, config->host, config->port, config->path)) {
+            LOG_ERROR("Failed to set WebSocket server configuration");
             linx_websocket_protocol_destroy(ws_protocol);
             free(ws_protocol);
             return NULL;
         }
     } else {
+        LOG_ERROR("WebSocket protocol creation failed: neither URL nor host+path provided");
         linx_websocket_protocol_destroy(ws_protocol);
         free(ws_protocol);
         return NULL; /* Either url or host+path must be provided */
@@ -79,7 +92,9 @@ linx_websocket_protocol_t* linx_websocket_protocol_create(const linx_websocket_c
     
     /* Configure authentication and identification */
     if (config->auth_token) {
+        LOG_DEBUG("Setting WebSocket auth token");
         if (!linx_websocket_protocol_set_auth_token(ws_protocol, config->auth_token)) {
+            LOG_ERROR("Failed to set WebSocket auth token");
             linx_websocket_protocol_destroy(ws_protocol);
             free(ws_protocol);
             return NULL;
@@ -87,7 +102,9 @@ linx_websocket_protocol_t* linx_websocket_protocol_create(const linx_websocket_c
     }
     
     if (config->device_id) {
+        LOG_DEBUG("Setting WebSocket device ID: %s", config->device_id);
         if (!linx_websocket_protocol_set_device_id(ws_protocol, config->device_id)) {
+            LOG_ERROR("Failed to set WebSocket device ID");
             linx_websocket_protocol_destroy(ws_protocol);
             free(ws_protocol);
             return NULL;
@@ -95,7 +112,9 @@ linx_websocket_protocol_t* linx_websocket_protocol_create(const linx_websocket_c
     }
     
     if (config->client_id) {
+        LOG_DEBUG("Setting WebSocket client ID: %s", config->client_id);
         if (!linx_websocket_protocol_set_client_id(ws_protocol, config->client_id)) {
+            LOG_ERROR("Failed to set WebSocket client ID");
             linx_websocket_protocol_destroy(ws_protocol);
             free(ws_protocol);
             return NULL;
@@ -104,22 +123,30 @@ linx_websocket_protocol_t* linx_websocket_protocol_create(const linx_websocket_c
     
     /* Set protocol version */
     if (config->protocol_version > 0) {
+        LOG_DEBUG("Setting WebSocket protocol version: %d", config->protocol_version);
         ws_protocol->version = config->protocol_version;
     }
+    
+    LOG_INFO("WebSocket protocol created successfully - version: %d, URL: %s", 
+             ws_protocol->version, ws_protocol->server_url ? ws_protocol->server_url : "N/A");
     
     return ws_protocol;
 }
 
 static void linx_websocket_protocol_destroy(linx_websocket_protocol_t* ws_protocol) {
     if (!ws_protocol) {
+        LOG_WARN("Attempting to destroy NULL WebSocket protocol");
         return;
     }
+    
+    LOG_DEBUG("Destroying WebSocket protocol");
     
     /* Stop the protocol if running */
     linx_websocket_stop(ws_protocol);
     
     /* Clean up connection */
     if (ws_protocol->conn) {
+        LOG_DEBUG("Closing WebSocket connection");
         ws_protocol->conn->is_closing = 1;
         ws_protocol->conn = NULL;
     }
@@ -152,6 +179,8 @@ static void linx_websocket_protocol_destroy(linx_websocket_protocol_t* ws_protoc
         free(ws_protocol->base.session_id);
         ws_protocol->base.session_id = NULL;
     }
+    
+    LOG_INFO("WebSocket protocol destroyed successfully");
     
     free(ws_protocol);
 }
@@ -249,17 +278,20 @@ static void linx_websocket_event_handler(struct mg_connection* conn, int ev, voi
     linx_websocket_protocol_t* ws_protocol = (linx_websocket_protocol_t*)conn->fn_data;
     
     if (!ws_protocol) {
+        LOG_ERROR("WebSocket event handler called with NULL protocol");
         return;
     }
     
     switch (ev) {
         case MG_EV_CONNECT: {
             /* Connection established, WebSocket upgrade will happen automatically */
+            LOG_DEBUG("WebSocket TCP connection established");
             break;
         }
         
         case MG_EV_WS_OPEN: {
             /* WebSocket connection opened */
+            LOG_INFO("WebSocket connection opened successfully");
             ws_protocol->connected = true;
             if (ws_protocol->base.callbacks.on_connected) {
                 ws_protocol->base.callbacks.on_connected(ws_protocol->base.callbacks.user_data);
@@ -268,8 +300,11 @@ static void linx_websocket_event_handler(struct mg_connection* conn, int ev, voi
             /* Send hello message */
             char* hello_msg = linx_websocket_get_hello_message(ws_protocol);
             if (hello_msg) {
+                LOG_DEBUG("Sending WebSocket hello message");
                 mg_ws_send(conn, hello_msg, strlen(hello_msg), WEBSOCKET_OP_TEXT);
                 free(hello_msg);
+            } else {
+                LOG_ERROR("Failed to generate WebSocket hello message");
             }
             break;
         }
@@ -280,11 +315,11 @@ static void linx_websocket_event_handler(struct mg_connection* conn, int ev, voi
             
             if (wm->flags & WEBSOCKET_OP_TEXT) {
                 /* Text message - parse as JSON */
-                printf("[WebSocket] Received text message (length: %zu)\n", wm->data.len);
+                LOG_DEBUG("WebSocket received text message (length: %zu)", wm->data.len);
                 
                 cJSON* json = cJSON_ParseWithLength((const char*)wm->data.buf, wm->data.len);
                 if (!json) {
-                    printf("[WebSocket] Failed to parse JSON message\n");
+                    LOG_ERROR("WebSocket failed to parse JSON message");
                     return;
                 }
 
@@ -293,33 +328,33 @@ static void linx_websocket_event_handler(struct mg_connection* conn, int ev, voi
                 
                 cJSON* type = cJSON_GetObjectItem(json, "type");
                 if (!cJSON_IsString(type) || !type->valuestring) {
-                    printf("[WebSocket] Invalid or missing message type\n");
+                    LOG_ERROR("WebSocket invalid or missing message type");
                     cJSON_Delete(json);
                     return;
                 }
                 
-                printf("[WebSocket] Message type: %s\n", type->valuestring);
+                LOG_DEBUG("WebSocket message type: %s", type->valuestring);
                 
                 /* Handle different message types */
                 if (strcmp(type->valuestring, "hello") == 0) {
                     /* Server hello message - handle internally */
-                    printf("[WebSocket] Processing server hello message\n");
+                    LOG_INFO("WebSocket processing server hello message");
                     char* json_string = cJSON_Print(json);
                     if (json_string) {
                         linx_websocket_parse_server_hello(ws_protocol, json_string);
-                        printf("[WebSocket] Server hello processed successfully\n");
+                        LOG_INFO("WebSocket server hello processed successfully");
                         free(json_string);
                     } else {
-                        printf("[WebSocket] Failed to serialize hello message\n");
+                        LOG_ERROR("WebSocket failed to serialize hello message");
                     }
                 } 
 
                 /* Other message types - call user callback */
                 if (ws_protocol->base.callbacks.on_incoming_json) {
                     ws_protocol->base.callbacks.on_incoming_json(json, ws_protocol->base.callbacks.user_data);
-                    printf("[WebSocket] User callback executed for type: %s\n", type->valuestring);
+                    LOG_DEBUG("WebSocket user callback executed for type: %s", type->valuestring);
                 } else {
-                    printf("[WebSocket] No user callback registered\n");
+                    LOG_DEBUG("WebSocket no user callback registered");
                 }
               
 
@@ -390,6 +425,7 @@ static void linx_websocket_event_handler(struct mg_connection* conn, int ev, voi
         
         case MG_EV_CLOSE: {
             /* Connection closed */
+            LOG_INFO("WebSocket connection closed");
             ws_protocol->connected = false;
             ws_protocol->audio_channel_opened = false;
             ws_protocol->conn = NULL;
@@ -403,9 +439,14 @@ static void linx_websocket_event_handler(struct mg_connection* conn, int ev, voi
         case MG_EV_ERROR: {
             /* Connection error */
             char* error_msg = (char*)ev_data;
+            LOG_ERROR("WebSocket connection error: %s", error_msg ? error_msg : "Unknown error");
             linx_protocol_set_error(&ws_protocol->base, error_msg ? error_msg : "WebSocket connection error");
             break;
         }
+        
+        default:
+            LOG_DEBUG("WebSocket received unhandled event: %d", ev);
+            break;
     }
 }
 
@@ -413,10 +454,15 @@ static void linx_websocket_event_handler(struct mg_connection* conn, int ev, voi
 bool linx_websocket_start(linx_protocol_t* protocol) {
     linx_websocket_protocol_t* ws_protocol = (linx_websocket_protocol_t*)protocol;
     
+    LOG_DEBUG("Starting WebSocket protocol");
+    
     if (!ws_protocol || !ws_protocol->server_url) {
+        LOG_ERROR("Cannot start WebSocket: invalid protocol or missing server URL");
         return false;
     }
     
+    LOG_INFO("Starting WebSocket connection to: %s", ws_protocol->server_url);
+
     /* Create WebSocket connection with headers */
     char headers[1024] = "";
     
@@ -472,15 +518,11 @@ bool linx_websocket_send_audio(linx_protocol_t* protocol, linx_audio_stream_pack
     linx_websocket_protocol_t* ws_protocol = (linx_websocket_protocol_t*)protocol;
     
     if (!ws_protocol || !ws_protocol->conn || !ws_protocol->connected || !packet) {
-        printf("Linx: Invalid websocket protocol\n");
+        LOG_ERROR("Invalid websocket protocol or connection state");
         return false;
     }
-    printf("Linx: Sending audio packet\n");
-    printf("   - Sample Rate: %d\n", packet->sample_rate);
-    printf("   - Frame Duration: %d\n", packet->frame_duration);
-    printf("   - Timestamp: %u\n", packet->timestamp);
-    printf("   - Payload Size: %zu\n", packet->payload_size);
-    printf("   - version: %d\n",ws_protocol->version);
+    LOG_DEBUG("Sending audio packet - Sample Rate: %d, Frame Duration: %d, Timestamp: %u, Payload Size: %zu, Version: %d", 
+              packet->sample_rate, packet->frame_duration, packet->timestamp, packet->payload_size, ws_protocol->version);
     
     if (ws_protocol->version == 2) {
 
@@ -488,7 +530,7 @@ bool linx_websocket_send_audio(linx_protocol_t* protocol, linx_audio_stream_pack
         size_t total_size = sizeof(linx_binary_protocol2_t) + packet->payload_size;
         uint8_t* buffer = malloc(total_size);
         if (!buffer) {
-            printf("❌ WebSocket发送失败: 内存分配失败 (协议v2)\n");
+            LOG_ERROR("WebSocket send failed: memory allocation failed (protocol v2)");
             return false;
         }
         
@@ -504,9 +546,9 @@ bool linx_websocket_send_audio(linx_protocol_t* protocol, linx_audio_stream_pack
         free(buffer);
         
         if (send_result > 0) {
-            printf("✅ WebSocket发送成功: %zu 字节 (协议v2, 总大小: %zu)\n", packet->payload_size, total_size);
+            LOG_DEBUG("WebSocket send successful: %zu bytes (protocol v2, total size: %zu)", packet->payload_size, total_size);
         } else {
-            printf("❌ WebSocket发送失败: mg_ws_send返回 %d (协议v2)\n", send_result);
+            LOG_ERROR("WebSocket send failed: mg_ws_send returned %d (protocol v2)", send_result);
         }
         
         return send_result > 0;
@@ -515,7 +557,7 @@ bool linx_websocket_send_audio(linx_protocol_t* protocol, linx_audio_stream_pack
         size_t total_size = sizeof(linx_binary_protocol3_t) + packet->payload_size;
         uint8_t* buffer = malloc(total_size);
         if (!buffer) {
-            printf("❌ WebSocket发送失败: 内存分配失败 (协议v3)\n");
+            LOG_ERROR("WebSocket send failed: memory allocation failed (protocol v3)");
             return false;
         }
         
@@ -529,9 +571,9 @@ bool linx_websocket_send_audio(linx_protocol_t* protocol, linx_audio_stream_pack
         free(buffer);
         
         if (send_result > 0) {
-            printf("✅ WebSocket发送成功: %zu 字节 (协议v3, 总大小: %zu)\n", packet->payload_size, total_size);
+            LOG_DEBUG("WebSocket send successful: %zu bytes (protocol v3, total size: %zu)", packet->payload_size, total_size);
         } else {
-            printf("❌ WebSocket发送失败: mg_ws_send返回 %d (协议v3)\n", send_result);
+            LOG_ERROR("WebSocket send failed: mg_ws_send returned %d (protocol v3)", send_result);
         }
         
         return send_result > 0;
@@ -540,9 +582,9 @@ bool linx_websocket_send_audio(linx_protocol_t* protocol, linx_audio_stream_pack
         int send_result = mg_ws_send(ws_protocol->conn, packet->payload, packet->payload_size, WEBSOCKET_OP_BINARY);
         
         if (send_result > 0) {
-            printf("✅ WebSocket发送成功: %zu 字节 (原始数据, 协议v%d)\n", packet->payload_size, ws_protocol->version);
+            LOG_DEBUG("WebSocket send successful: %zu bytes (raw data, protocol v%d)", packet->payload_size, ws_protocol->version);
         } else {
-            printf("❌ WebSocket发送失败: mg_ws_send返回 %d (原始数据, 协议v%d)\n", send_result, ws_protocol->version);
+            LOG_ERROR("WebSocket send failed: mg_ws_send returned %d (raw data, protocol v%d)", send_result, ws_protocol->version);
         }
         
         return send_result > 0;
@@ -553,10 +595,10 @@ bool linx_websocket_send_text(linx_protocol_t* protocol, const char* text) {
     linx_websocket_protocol_t* ws_protocol = (linx_websocket_protocol_t*)protocol;
     
     if (!ws_protocol || !ws_protocol->conn || !ws_protocol->connected || !text) {
-        printf("❌ WebSocket发送文本失败: 无效的协议或连接或未连接或文本为空\n");
+        LOG_ERROR("WebSocket send text failed: invalid protocol or connection or not connected or text is empty");
         return false;
     }
-    printf("🚀 WebSocket发送文本: %s\n", text);
+    LOG_DEBUG("WebSocket sending text: %s", text);
     mg_ws_send(ws_protocol->conn, text, strlen(text), WEBSOCKET_OP_TEXT);
     return true;
 }

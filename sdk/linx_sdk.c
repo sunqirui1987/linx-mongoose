@@ -55,7 +55,7 @@ LinxSdk* linx_sdk_create(const LinxSdkConfig* config) {
     
     // 初始化日志系统
     log_config_t log_config = LOG_DEFAULT_CONFIG;
-    log_config.level = LOG_LEVEL_INFO;  // 默认INFO级别
+    log_config.level = LOG_LEVEL_DEBUG;  // 默认INFO级别
     log_config.enable_timestamp = true;
     log_config.enable_color = true;
     if (log_init(&log_config) != 0) {

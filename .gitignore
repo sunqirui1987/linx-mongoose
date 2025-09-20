@@ -9,3 +9,4 @@ sdk/audio/test/build
 sdk/codecs/build
 sdk/lib
 demo/bin
+sdk/build
