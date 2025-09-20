@@ -282,6 +282,10 @@ build_main_project() {
         print_error "Failed to build main project"
         exit 1
     }
+    make install || {
+        print_error "Failed to install main project"
+        exit 1
+    }
     
     print_success "Main project built successfully"
 }

@@ -58,6 +58,24 @@ target_link_libraries(linx_sdk_static PUBLIC
     linx_audio
 )
 
+## static library 合并
+add_custom_command(
+    TARGET linx_sdk_static
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E remove -f ${CMAKE_BINARY_DIR}/lib/liblinx_sdk_static.a
+    COMMAND ar -qcs ${CMAKE_BINARY_DIR}/lib/liblinx_sdk_static.a
+        ${CMAKE_BINARY_DIR}/log/liblinx_log.a
+        ${CMAKE_BINARY_DIR}/cjson/libcjson_static.a
+        ${CMAKE_BINARY_DIR}/mcp/liblinx_mcp.a
+        ${CMAKE_BINARY_DIR}/protocols/liblinx_protocols.a
+        ${CMAKE_BINARY_DIR}/codecs/liblinx_codecs.a
+        ${CMAKE_BINARY_DIR}/audio/liblinx_audio.a
+        ${CMAKE_BINARY_DIR}/lib/liblinx_sdk.a
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/lib/liblinx_sdk_merged.a ${CMAKE_BINARY_DIR}/lib/liblinx_sdk.a
+    COMMENT "Merging all static libraries into liblinx_sdk.a"
+)
+
+
 # =============================================================================
 # Installation configuration
 # =============================================================================
