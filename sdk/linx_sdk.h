@@ -66,6 +66,12 @@ typedef struct {
     uint16_t channels;              ///< 声道数 (默认1)
     uint32_t timeout_ms;            ///< 超时时间(毫秒)
     
+    // WebSocket连接配置
+    char auth_token[256];           ///< 认证令牌
+    char device_id[64];             ///< 设备ID
+    char client_id[64];             ///< 客户端ID
+    uint32_t protocol_version;      ///< 协议版本
+    
     linx_listening_mode_t listening_mode; ///< 监听模式
 } LinxSdkConfig;
 
@@ -89,10 +95,8 @@ typedef enum {
     LINX_EVENT_TTS_STOPPED,         ///< TTS停止播放
     
     // MCP相关事件
-    LINX_EVENT_MCP_TOOL_CALL,       ///< MCP工具调用
-    LINX_EVENT_MCP_TOOL_RESULT,     ///< MCP工具结果
     LINX_EVENT_MCP_MESSAGE,         ///< MCP消息
-    LINX_EVENT_MCP_MESSAGE_SENT     ///< MCP消息已发送
+
 } LinxEventType;
 
 /**
@@ -736,7 +740,7 @@ const char* linx_sdk_get_session_id(LinxSdk* sdk);
  * - 回调函数必须是线程安全的
  * - 工具名称和描述字符串会被复制，调用后可以安全释放
  * 
- * @see mcp_tool_callback_t, LINX_EVENT_MCP_TOOL_CALL, LINX_EVENT_MCP_TOOL_RESULT
+ * @see mcp_tool_callback_t
  * 
  * @example
  * ```c

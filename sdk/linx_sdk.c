@@ -212,10 +212,10 @@ LinxSdkError linx_sdk_connect(LinxSdk* sdk) {
     // 创建WebSocket协议实例
     linx_websocket_config_t ws_config = {
         .url = sdk->config.server_url,
-        .auth_token = NULL,  // 配置结构体中没有这些字段，使用默认值
-        .device_id = NULL,
-        .client_id = NULL,
-        .protocol_version = 1
+        .auth_token = strlen(sdk->config.auth_token) > 0 ? sdk->config.auth_token : NULL,
+        .device_id = strlen(sdk->config.device_id) > 0 ? sdk->config.device_id : NULL,
+        .client_id = strlen(sdk->config.client_id) > 0 ? sdk->config.client_id : NULL,
+        .protocol_version = sdk->config.protocol_version > 0 ? sdk->config.protocol_version : 1
     };
     
     sdk->ws_protocol = linx_websocket_protocol_create(&ws_config);

@@ -47,6 +47,7 @@
         "mcp_types.h": "c",
         "linx_protocol.h": "c",
         "time.h": "c",
-        "mcp_server.h": "c"
+        "mcp_server.h": "c",
+        "audio_codec.h": "c"
     }
 }
