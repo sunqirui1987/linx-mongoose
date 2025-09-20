@@ -1,6 +1,5 @@
 #include "audio_codec.h"
 #include "opus_codec.h"
-#include "es8388_codec.h"
 #include "codec_stub.h"
 #include "../log/linx_log.h"
 #include <stdlib.h>
@@ -10,9 +9,6 @@
 static const codec_type_t supported_codecs[] = {
 #if defined(__APPLE__) || defined(__linux__)
     CODEC_TYPE_OPUS,        // macOS/Linux 支持 Opus
-#endif
-#ifdef ESP_PLATFORM
-    CODEC_TYPE_ES8388,      // ESP32 支持 ES8388
 #endif
     CODEC_TYPE_STUB         // 所有平台都支持 stub
 };
@@ -34,10 +30,6 @@ audio_codec_t* codec_factory_create(codec_type_t type) {
             LOG_ERROR("Opus codec not available on this platform");
             return NULL;
 #endif
-        
-        case CODEC_TYPE_ES8388:
-            LOG_INFO("Creating ES8388 codec");
-            return es8388_codec_create();
         
         case CODEC_TYPE_STUB:
             LOG_INFO("Creating stub codec");

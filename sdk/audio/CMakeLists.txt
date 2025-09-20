@@ -14,12 +14,19 @@ set(AUDIO_HEADERS
 )
 
 # 平台特定的音频实现
-if(LINX_TARGET_PLATFORM STREQUAL "macos" OR LINX_TARGET_PLATFORM STREQUAL "linux")
-    # PortAudio 实现 (macOS/Linux)
-    find_package(PortAudio REQUIRED)
+if(LINX_TARGET_PLATFORM STREQUAL "macos")
+    # PortAudio 实现 (macOS)
     list(APPEND AUDIO_SOURCES portaudio_mac.c)
     list(APPEND AUDIO_HEADERS portaudio_mac.h)
-    set(AUDIO_PLATFORM_LIBS PortAudio::portaudio)
+    set(AUDIO_PLATFORM_LIBS portaudio opus)
+    set(AUDIO_INCLUDE_DIRS 
+        /opt/homebrew/opt/portaudio/include
+        /opt/homebrew/opt/opus/include
+    )
+    set(AUDIO_LIBRARY_DIRS
+        /opt/homebrew/opt/portaudio/lib
+        /opt/homebrew/opt/opus/lib
+    )
     
 elseif(LINX_TARGET_PLATFORM STREQUAL "esp32")
     # ESP32 I2S 实现
@@ -60,6 +67,16 @@ add_library(linx_audio STATIC ${AUDIO_SOURCES})
 target_include_directories(linx_audio PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
+
+# 添加平台特定的包含目录
+if(AUDIO_INCLUDE_DIRS)
+    target_include_directories(linx_audio PUBLIC ${AUDIO_INCLUDE_DIRS})
+endif()
+
+# 添加平台特定的库目录
+if(AUDIO_LIBRARY_DIRS)
+    target_link_directories(linx_audio PUBLIC ${AUDIO_LIBRARY_DIRS})
+endif()
 
 # 链接平台特定的库
 if(AUDIO_PLATFORM_LIBS)
