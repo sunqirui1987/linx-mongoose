@@ -1,0 +1,194 @@
+/* linx_config.h - Linx SDK 配置头文件 */
+/* 此文件由 CMake 自动生成，请勿手动编辑 */
+
+#ifndef LINX_CONFIG_H
+#define LINX_CONFIG_H
+
+/* 版本信息 */
+#define LINX_VERSION_MAJOR @LINX_VERSION_MAJOR@
+#define LINX_VERSION_MINOR @LINX_VERSION_MINOR@
+#define LINX_VERSION_PATCH @LINX_VERSION_PATCH@
+#define LINX_VERSION_STRING "@LINX_VERSION_STRING@"
+
+/* 平台检测 */
+#cmakedefine LINX_PLATFORM_WINDOWS
+#cmakedefine LINX_PLATFORM_MACOS
+#cmakedefine LINX_PLATFORM_LINUX
+#cmakedefine LINX_PLATFORM_ESP32
+#cmakedefine LINX_PLATFORM_EMBEDDED_LINUX
+
+/* 架构检测 */
+#cmakedefine LINX_ARCH_32BIT
+#cmakedefine LINX_ARCH_64BIT
+
+/* 编译器检测 */
+#cmakedefine LINX_COMPILER_GCC
+#cmakedefine LINX_COMPILER_CLANG
+#cmakedefine LINX_COMPILER_MSVC
+
+/* 标准头文件可用性 */
+#cmakedefine LINX_HAVE_STDINT_H
+#cmakedefine LINX_HAVE_STDBOOL_H
+#cmakedefine LINX_HAVE_UNISTD_H
+#cmakedefine LINX_HAVE_SYS_TIME_H
+#cmakedefine LINX_HAVE_PTHREAD_H
+
+/* 函数可用性 */
+#cmakedefine LINX_HAVE_GETTIMEOFDAY
+#cmakedefine LINX_HAVE_CLOCK_GETTIME
+#cmakedefine LINX_HAVE_USLEEP
+
+/* 类型大小 */
+#define LINX_SIZEOF_SIZE_T @SIZEOF_SIZE_T@
+#define LINX_SIZEOF_INT @SIZEOF_INT@
+#define LINX_SIZEOF_LONG @SIZEOF_LONG@
+#define LINX_SIZEOF_VOID_P @SIZEOF_VOID_P@
+
+/* 组件功能 */
+#cmakedefine LINX_ENABLE_AUDIO
+#cmakedefine LINX_ENABLE_OPUS
+#cmakedefine LINX_ENABLE_PORTAUDIO
+#cmakedefine LINX_ENABLE_WEBSOCKET
+#cmakedefine LINX_ENABLE_MCP
+#cmakedefine LINX_ENABLE_LOGGING
+
+/* 平台特定配置 */
+#ifdef LINX_PLATFORM_WINDOWS
+    #define LINX_EXPORT __declspec(dllexport)
+    #define LINX_IMPORT __declspec(dllimport)
+    #define LINX_INLINE __inline
+    #define LINX_THREAD_LOCAL __declspec(thread)
+#elif defined(LINX_PLATFORM_MACOS) || defined(LINX_PLATFORM_LINUX)
+    #define LINX_EXPORT __attribute__((visibility("default")))
+    #define LINX_IMPORT
+    #define LINX_INLINE inline
+    #define LINX_THREAD_LOCAL __thread
+#else
+    #define LINX_EXPORT
+    #define LINX_IMPORT
+    #define LINX_INLINE
+    #define LINX_THREAD_LOCAL
+#endif
+
+/* API 宏 */
+#ifdef LINX_BUILDING_LIBRARY
+    #define LINX_API LINX_EXPORT
+#else
+    #define LINX_API LINX_IMPORT
+#endif
+
+/* 调试配置 */
+#ifdef NDEBUG
+    #define LINX_DEBUG 0
+#else
+    #define LINX_DEBUG 1
+#endif
+
+/* 内存对齐 */
+#if defined(LINX_COMPILER_GCC) || defined(LINX_COMPILER_CLANG)
+    #define LINX_ALIGNED(x) __attribute__((aligned(x)))
+#elif defined(LINX_COMPILER_MSVC)
+    #define LINX_ALIGNED(x) __declspec(align(x))
+#else
+    #define LINX_ALIGNED(x)
+#endif
+
+/* 分支预测优化 */
+#if defined(LINX_COMPILER_GCC) || defined(LINX_COMPILER_CLANG)
+    #define LINX_LIKELY(x) __builtin_expect(!!(x), 1)
+    #define LINX_UNLIKELY(x) __builtin_expect(!!(x), 0)
+#else
+    #define LINX_LIKELY(x) (x)
+    #define LINX_UNLIKELY(x) (x)
+#endif
+
+/* 未使用参数标记 */
+#if defined(LINX_COMPILER_GCC) || defined(LINX_COMPILER_CLANG)
+    #define LINX_UNUSED __attribute__((unused))
+#else
+    #define LINX_UNUSED
+#endif
+
+/* 弃用标记 */
+#if defined(LINX_COMPILER_GCC) || defined(LINX_COMPILER_CLANG)
+    #define LINX_DEPRECATED __attribute__((deprecated))
+#elif defined(LINX_COMPILER_MSVC)
+    #define LINX_DEPRECATED __declspec(deprecated)
+#else
+    #define LINX_DEPRECATED
+#endif
+
+/* 标准类型定义 */
+#ifdef LINX_HAVE_STDINT_H
+    #include <stdint.h>
+#else
+    /* 为不支持 stdint.h 的平台定义基本类型 */
+    typedef signed char int8_t;
+    typedef unsigned char uint8_t;
+    typedef short int16_t;
+    typedef unsigned short uint16_t;
+    typedef int int32_t;
+    typedef unsigned int uint32_t;
+    #if LINX_SIZEOF_LONG == 8
+        typedef long int64_t;
+        typedef unsigned long uint64_t;
+    #else
+        typedef long long int64_t;
+        typedef unsigned long long uint64_t;
+    #endif
+#endif
+
+#ifdef LINX_HAVE_STDBOOL_H
+    #include <stdbool.h>
+#else
+    /* 为不支持 stdbool.h 的平台定义布尔类型 */
+    #ifndef __cplusplus
+        typedef int bool;
+        #define true 1
+        #define false 0
+    #endif
+#endif
+
+/* 平台特定包含 */
+#ifdef LINX_PLATFORM_WINDOWS
+    #ifndef WIN32_LEAN_AND_MEAN
+        #define WIN32_LEAN_AND_MEAN
+    #endif
+    #include <windows.h>
+#endif
+
+#ifdef LINX_HAVE_PTHREAD_H
+    #include <pthread.h>
+#endif
+
+/* 错误码定义 */
+#define LINX_SUCCESS 0
+#define LINX_ERROR_INVALID_PARAM -1
+#define LINX_ERROR_OUT_OF_MEMORY -2
+#define LINX_ERROR_NOT_SUPPORTED -3
+#define LINX_ERROR_TIMEOUT -4
+#define LINX_ERROR_IO -5
+#define LINX_ERROR_NETWORK -6
+#define LINX_ERROR_PROTOCOL -7
+#define LINX_ERROR_CODEC -8
+#define LINX_ERROR_AUDIO -9
+#define LINX_ERROR_UNKNOWN -999
+
+/* 日志级别 */
+#define LINX_LOG_LEVEL_TRACE 0
+#define LINX_LOG_LEVEL_DEBUG 1
+#define LINX_LOG_LEVEL_INFO 2
+#define LINX_LOG_LEVEL_WARN 3
+#define LINX_LOG_LEVEL_ERROR 4
+#define LINX_LOG_LEVEL_FATAL 5
+
+/* 默认日志级别 */
+#ifndef LINX_LOG_LEVEL
+    #if LINX_DEBUG
+        #define LINX_LOG_LEVEL LINX_LOG_LEVEL_DEBUG
+    #else
+        #define LINX_LOG_LEVEL LINX_LOG_LEVEL_INFO
+    #endif
+#endif
+
+#endif /* LINX_CONFIG_H */

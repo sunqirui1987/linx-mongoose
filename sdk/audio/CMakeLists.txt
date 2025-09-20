@@ -1,73 +1,41 @@
 cmake_minimum_required(VERSION 3.10)
 
-# Find PortAudio
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(PORTAUDIO REQUIRED portaudio-2.0)
+# 查找 PortAudio（使用统一的查找模块）
+find_package(PortAudio REQUIRED)
 
-# Audio library
+# 音频库源文件
 set(AUDIO_SOURCES
     audio_interface.c
-    portaudio_mac.c
 )
 
 set(AUDIO_HEADERS
     audio_interface.h
-    portaudio_mac.h
 )
 
-# Create audio library
-add_library(linx_audio STATIC ${AUDIO_SOURCES})
-
-# Include directories
-target_include_directories(linx_audio PUBLIC 
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${PORTAUDIO_INCLUDE_DIRS}
-)
-
-# Link libraries
-target_link_libraries(linx_audio 
-    ${PORTAUDIO_LIBRARIES}
-    pthread
-)
-
-# Compiler flags
-target_compile_options(linx_audio PRIVATE ${PORTAUDIO_CFLAGS_OTHER})
-
-# For macOS, we might need to find PortAudio via Homebrew
-if(APPLE)
-    # Try to find PortAudio via Homebrew
-    find_path(PORTAUDIO_INCLUDE_DIR portaudio.h
-        PATHS
-        /usr/local/include
-        /opt/homebrew/include
-        /usr/include
-    )
-    
-    find_library(PORTAUDIO_LIBRARY portaudio
-        PATHS
-        /usr/local/lib
-        /opt/homebrew/lib
-        /usr/lib
-    )
-    
-    if(PORTAUDIO_INCLUDE_DIR AND PORTAUDIO_LIBRARY)
-        target_include_directories(linx_audio PUBLIC ${PORTAUDIO_INCLUDE_DIR})
-        target_link_libraries(linx_audio ${PORTAUDIO_LIBRARY})
-        
-        # macOS specific frameworks
-        target_link_libraries(linx_audio 
-            "-framework CoreAudio"
-            "-framework AudioToolbox"
-            "-framework AudioUnit"
-            "-framework CoreServices"
-        )
-    else()
-        message(WARNING "PortAudio not found. Please install via: brew install portaudio")
-    endif()
+# 根据平台添加特定源文件
+if(LINX_TARGET_PLATFORM STREQUAL "macos" OR LINX_TARGET_PLATFORM STREQUAL "linux")
+    list(APPEND AUDIO_SOURCES portaudio_mac.c)
+    list(APPEND AUDIO_HEADERS portaudio_mac.h)
 endif()
 
-# Install headers
+# 创建音频库
+add_library(linx_audio STATIC ${AUDIO_SOURCES})
+
+# 包含目录
+target_include_directories(linx_audio PUBLIC 
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+# 链接库
+target_link_libraries(linx_audio 
+    PUBLIC PortAudio::portaudio
+)
+
+# 编译选项
+target_compile_options(linx_audio PRIVATE -Wall -Wextra)
+
+# 安装头文件
 install(FILES ${AUDIO_HEADERS} DESTINATION include/linx/audio)
 
-# Install library
+# 安装库
 install(TARGETS linx_audio DESTINATION lib)

@@ -10,3 +10,4 @@ sdk/codecs/build
 sdk/lib
 demo/bin
 sdk/build
+sdk/build_macos

@@ -1,11 +1,9 @@
 cmake_minimum_required(VERSION 3.10)
-project(linx_protocols C)
 
-# Set C standard
-set(CMAKE_C_STANDARD 99)
-set(CMAKE_C_STANDARD_REQUIRED ON)
+# 查找 Mongoose（使用统一的查找模块）
+find_package(Mongoose REQUIRED)
 
-# Protocols library sources
+# 协议库源文件
 set(PROTOCOLS_SOURCES
     linx_protocol.c
     linx_websocket.c
@@ -16,34 +14,31 @@ set(PROTOCOLS_HEADERS
     linx_websocket.h
 )
 
-# Create protocols library
+# 创建协议库
 add_library(linx_protocols STATIC ${PROTOCOLS_SOURCES})
 
-# Include directories
+# 包含目录
 target_include_directories(linx_protocols PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/../cjson
     ${CMAKE_CURRENT_SOURCE_DIR}/../log
 )
 
-# Compiler flags
+# 编译选项
+target_compile_features(linx_protocols PRIVATE c_std_99)
 target_compile_options(linx_protocols PRIVATE 
     -Wall 
     -Wextra 
     -Wno-unused-parameter
 )
 
-# Link dependencies
+# 链接依赖
 target_link_libraries(linx_protocols
-    cjson_static
-    linx_log
+    PUBLIC
+        Mongoose::mongoose
+        cjson_static
+        linx_log
 )
-
-# For networking and threading, link required libraries
-find_package(Threads)
-if(Threads_FOUND)
-    target_link_libraries(linx_protocols ${CMAKE_THREAD_LIBS_INIT})
-endif()
 
 # Install headers
 install(FILES ${PROTOCOLS_HEADERS} DESTINATION include/linx/protocols)
