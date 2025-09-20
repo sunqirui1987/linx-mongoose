@@ -174,6 +174,58 @@ endif()
 # Install combined library
 install(TARGETS linx_sdk_combined DESTINATION lib)
 
+# Create include and lib directories in build folder by modules
+file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/include)
+file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/include/audio)
+file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/include/cjson)
+file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/include/codecs)
+file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/include/log)
+file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/include/mcp)
+file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/include/protocols)
+file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+
+# Copy main SDK header to build directory
+add_custom_command(TARGET linx_sdk POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    ${CMAKE_CURRENT_SOURCE_DIR}/linx_sdk.h
+    ${CMAKE_BINARY_DIR}/include/linx_sdk.h
+    COMMENT "Copying main SDK header to build directory"
+)
+
+# Copy all module headers (.h files only) to build directory
+add_custom_command(TARGET linx_sdk POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/*.h
+    ${CMAKE_BINARY_DIR}/include/audio/
+    COMMAND ${CMAKE_COMMAND} -E copy
+    ${CMAKE_CURRENT_SOURCE_DIR}/cjson/*.h
+    ${CMAKE_BINARY_DIR}/include/cjson/
+    COMMAND ${CMAKE_COMMAND} -E copy
+    ${CMAKE_CURRENT_SOURCE_DIR}/codecs/*.h
+    ${CMAKE_BINARY_DIR}/include/codecs/
+    COMMAND ${CMAKE_COMMAND} -E copy
+    ${CMAKE_CURRENT_SOURCE_DIR}/log/*.h
+    ${CMAKE_BINARY_DIR}/include/log/
+    COMMAND ${CMAKE_COMMAND} -E copy
+    ${CMAKE_CURRENT_SOURCE_DIR}/mcp/*.h
+    ${CMAKE_BINARY_DIR}/include/mcp/
+    COMMAND ${CMAKE_COMMAND} -E copy
+    ${CMAKE_CURRENT_SOURCE_DIR}/protocols/*.h
+    ${CMAKE_BINARY_DIR}/include/protocols/
+    COMMENT "Copying all module header files (.h) to build directory"
+)
+
+# Copy libraries to build directory after build
+add_custom_command(TARGET linx_sdk_combined POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    $<TARGET_FILE:linx_sdk>
+    ${CMAKE_BINARY_DIR}/lib/liblinx_sdk.a
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    $<TARGET_FILE:linx_sdk_combined>
+    ${CMAKE_BINARY_DIR}/lib/liblinx_sdk_all.a
+    COMMENT "Copying libraries to build directory"
+)
+
 # Print build summary
 message(STATUS "=== Linx SDK Build Summary ===")
 message(STATUS "Platform: ${LINX_PLATFORM_NAME} (${LINX_PLATFORM_TYPE})")
@@ -181,6 +233,9 @@ message(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "Audio Support: ${LINX_ENABLE_AUDIO}")
 message(STATUS "WebSocket Support: ${LINX_ENABLE_WEBSOCKET}")
 message(STATUS "MCP Support: ${LINX_ENABLE_MCP}")
+message(STATUS "Include Directory: ${CMAKE_INSTALL_PREFIX}/include/linx")
+message(STATUS "Library Directory: ${CMAKE_INSTALL_PREFIX}/lib")
+message(STATUS "Output Libraries: liblinx_sdk.a, liblinx_sdk_all.a")
 if(LINX_MISSING_DEPENDENCIES)
     message(WARNING "Some dependencies are missing. Build may fail.")
 endif()

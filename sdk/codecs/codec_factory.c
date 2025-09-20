@@ -1,24 +1,47 @@
 #include "audio_codec.h"
 #include "opus_codec.h"
+#include "es8388_codec.h"
+#include "codec_stub.h"
 #include "../log/linx_log.h"
 #include <stdlib.h>
 #include <string.h>
 
-// 支持的编解码器类型数组
+// 支持的编解码器类型数组（根据平台动态确定）
 static const codec_type_t supported_codecs[] = {
-    CODEC_TYPE_OPUS
+#if defined(__APPLE__) || defined(__linux__)
+    CODEC_TYPE_OPUS,        // macOS/Linux 支持 Opus
+#endif
+#ifdef ESP_PLATFORM
+    CODEC_TYPE_ES8388,      // ESP32 支持 ES8388
+#endif
+    CODEC_TYPE_STUB         // 所有平台都支持 stub
 };
 
 static const char* codec_names[] = {
-    "Opus"
+    [CODEC_TYPE_OPUS] = "Opus Software Codec",
+    [CODEC_TYPE_ES8388] = "ES8388 Hardware Codec",
+    [CODEC_TYPE_STUB] = "Stub Codec (No-op)"
 };
 
 // 创建编解码器实例
 audio_codec_t* codec_factory_create(codec_type_t type) {
     switch (type) {
         case CODEC_TYPE_OPUS:
+#if defined(__APPLE__) || defined(__linux__)
             LOG_INFO("Creating Opus codec");
             return opus_codec_create();
+#else
+            LOG_ERROR("Opus codec not available on this platform");
+            return NULL;
+#endif
+        
+        case CODEC_TYPE_ES8388:
+            LOG_INFO("Creating ES8388 codec");
+            return es8388_codec_create();
+        
+        case CODEC_TYPE_STUB:
+            LOG_INFO("Creating stub codec");
+            return codec_stub_create();
         
         default:
             LOG_ERROR("Unsupported codec type: %d", type);

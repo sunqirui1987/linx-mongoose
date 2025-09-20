@@ -67,6 +67,9 @@ function(detect_linx_platform)
         set(LINX_IS_EMBEDDED TRUE PARENT_SCOPE)
     endif()
 
+    # Set LINX_TARGET_PLATFORM for compatibility with other modules
+    set(LINX_TARGET_PLATFORM ${LINX_PLATFORM_NAME} PARENT_SCOPE)
+    
     set(LINX_PLATFORM_DETECTED TRUE PARENT_SCOPE)
 endfunction()
 
@@ -76,7 +79,7 @@ function(load_platform_config)
         message(FATAL_ERROR "Platform not detected. Call detect_linx_platform() first.")
     endif()
 
-    set(PLATFORM_CONFIG_FILE "${CMAKE_CURRENT_LIST_DIR}/platforms/${LINX_PLATFORM_NAME}.cmake")
+    set(PLATFORM_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/cmake/platforms/${LINX_PLATFORM_NAME}.cmake")
     
     if(EXISTS ${PLATFORM_CONFIG_FILE})
         message(STATUS "Loading platform config: ${PLATFORM_CONFIG_FILE}")

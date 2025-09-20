@@ -87,6 +87,8 @@ struct audio_codec {
 // 编解码器类型
 typedef enum {
     CODEC_TYPE_OPUS,
+    CODEC_TYPE_ES8388,      // ES8388 硬件编解码器
+    CODEC_TYPE_STUB,        // 存根编解码器（无操作）
     // 未来可以添加其他编解码器类型
     // CODEC_TYPE_AAC,
     // CODEC_TYPE_MP3,
