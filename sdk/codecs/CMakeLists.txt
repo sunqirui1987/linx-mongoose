@@ -15,11 +15,20 @@ set(CODEC_HEADERS
 # 平台特定的编解码器实现
 if(LINX_TARGET_PLATFORM STREQUAL "macos" OR LINX_TARGET_PLATFORM STREQUAL "linux")
     # macOS/Linux - 使用软编码 Opus
-    find_package(Opus REQUIRED)
-    list(APPEND CODEC_SOURCES opus_codec.c)
-    list(APPEND CODEC_HEADERS opus_codec.h)
-    set(CODEC_PLATFORM_LIBS Opus::opus)
-    message(STATUS "Using Opus software codec for ${LINX_TARGET_PLATFORM}")
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(OPUS REQUIRED opus)
+    
+    if(OPUS_FOUND)
+        list(APPEND CODEC_SOURCES opus_codec.c)
+        list(APPEND CODEC_HEADERS opus_codec.h)
+        set(CODEC_PLATFORM_LIBS ${OPUS_LIBRARIES})
+        set(CODEC_INCLUDE_DIRS ${OPUS_INCLUDE_DIRS})
+        message(STATUS "Using Opus software codec for ${LINX_TARGET_PLATFORM}")
+        message(STATUS "Opus libraries: ${OPUS_LIBRARIES}")
+        message(STATUS "Opus include dirs: ${OPUS_INCLUDE_DIRS}")
+    else()
+        message(FATAL_ERROR "Opus library not found")
+    endif()
     
 elseif(LINX_TARGET_PLATFORM STREQUAL "esp32")
     # ESP32 - 可以使用硬件编解码器或软编码
@@ -51,11 +60,18 @@ elseif(LINX_TARGET_PLATFORM STREQUAL "windows")
     # set(CODEC_PLATFORM_LIBS mfplat mfreadwrite mfuuid)
     
     # 当前使用软编码 Opus
-    find_package(Opus REQUIRED)
-    list(APPEND CODEC_SOURCES opus_codec.c)
-    list(APPEND CODEC_HEADERS opus_codec.h)
-    set(CODEC_PLATFORM_LIBS Opus::opus)
-    message(WARNING "Windows native codec not yet available, using Opus")
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(OPUS REQUIRED opus)
+    
+    if(OPUS_FOUND)
+        list(APPEND CODEC_SOURCES opus_codec.c)
+        list(APPEND CODEC_HEADERS opus_codec.h)
+        set(CODEC_PLATFORM_LIBS ${OPUS_LIBRARIES})
+        set(CODEC_INCLUDE_DIRS ${OPUS_INCLUDE_DIRS})
+        message(WARNING "Windows native codec not yet available, using Opus")
+    else()
+        message(FATAL_ERROR "Opus library not found")
+    endif()
     
 elseif(LINX_TARGET_PLATFORM STREQUAL "android")
     # Android - 可以使用 MediaCodec API 或软编码
@@ -86,6 +102,11 @@ add_library(linx_codecs STATIC ${CODEC_SOURCES})
 target_include_directories(linx_codecs PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
+
+# 添加平台特定的包含目录
+if(CODEC_INCLUDE_DIRS)
+    target_include_directories(linx_codecs PRIVATE ${CODEC_INCLUDE_DIRS})
+endif()
 
 # 链接平台特定的库
 if(CODEC_PLATFORM_LIBS)

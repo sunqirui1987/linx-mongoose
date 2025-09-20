@@ -1,7 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
 
-# 查找 Mongoose（使用统一的查找模块）
-find_package(Mongoose REQUIRED)
 
 # 协议库源文件
 set(PROTOCOLS_SOURCES
@@ -22,6 +20,7 @@ target_include_directories(linx_protocols PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/../cjson
     ${CMAKE_CURRENT_SOURCE_DIR}/../log
+    ${MONGOOSE_INCLUDE_DIRS}
 )
 
 # 编译选项

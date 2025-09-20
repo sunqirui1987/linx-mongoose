@@ -16,8 +16,8 @@ set(CJSON_HEADERS
     cJSON_Utils.h
 )
 
-# Create object library (for use in combined library)
-add_library(${CJSON_LIB_NAME} OBJECT ${CJSON_SOURCES})
+# Create static library (for use in combined library)
+add_library(${CJSON_LIB_NAME} STATIC ${CJSON_SOURCES})
 
 # Set target properties
 set_target_properties(${CJSON_LIB_NAME} PROPERTIES

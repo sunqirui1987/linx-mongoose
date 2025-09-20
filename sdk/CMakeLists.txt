@@ -1,242 +1,264 @@
 cmake_minimum_required(VERSION 3.10)
-project(linx_sdk VERSION 1.0.0 LANGUAGES C)
+project(linx_sdk C)
 
 # Set C standard
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
-# Add cmake modules path
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-
 # Include platform detection
-include(PlatformDetection)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/PlatformDetection.cmake)
+detect_linx_platform()
 
-# Print platform information
-print_platform_info()
+# Include find modules
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
-# Load platform-specific configuration
-load_platform_config()
+# Find required dependencies
+find_package(Mongoose REQUIRED)
+find_package(Threads REQUIRED)
 
-# Default compiler flags (can be overridden by platform configs)
-if(NOT CMAKE_C_FLAGS)
-    set(CMAKE_C_FLAGS "-Wall -Wextra -Wno-unused-parameter")
+# Platform-specific audio dependencies
+if(LINX_TARGET_PLATFORM STREQUAL "macos" OR LINX_TARGET_PLATFORM STREQUAL "linux")
+    find_package(PortAudio REQUIRED)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(OPUS REQUIRED opus)
 endif()
 
-# Default debug and release flags
-set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -g -O0 -DDEBUG")
-if(LINX_IS_EMBEDDED)
-    # Optimize for size on embedded platforms
-    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -Os -DNDEBUG")
-else()
-    # Optimize for speed on desktop platforms
-    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O2 -DNDEBUG")
-endif()
+# =============================================================================
+# Collect all source files from subdirectories
+# =============================================================================
 
-# Build type
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Release)
-endif()
-
-# Global definitions
-add_definitions(-DLINX_SDK_VERSION_MAJOR=1)
-add_definitions(-DLINX_SDK_VERSION_MINOR=0)
-add_definitions(-DLINX_SDK_VERSION_PATCH=0)
-
-# Include directories
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-
-# Add subdirectories (excluding test directories)
-add_subdirectory(cjson)
-add_subdirectory(audio)
-add_subdirectory(codecs)
-add_subdirectory(log)
-add_subdirectory(mcp)
-add_subdirectory(protocols)
-
-# Main SDK library sources
-set(SDK_SOURCES
+# Main SDK sources
+set(LINX_SDK_SOURCES
     linx_sdk.c
 )
 
-set(SDK_HEADERS
+# Log module sources
+set(LOG_SOURCES
+    log/linx_log.c
+)
+
+# cJSON module sources  
+set(CJSON_SOURCES
+    cjson/cJSON.c
+    cjson/cJSON_Utils.c
+)
+
+# MCP module sources
+set(MCP_SOURCES
+    mcp/mcp_property.c
+    mcp/mcp_server.c
+    mcp/mcp_tool.c
+    mcp/mcp_utils.c
+)
+
+# Protocols module sources
+set(PROTOCOLS_SOURCES
+    protocols/linx_protocol.c
+    protocols/linx_websocket.c
+)
+
+# Codecs module sources
+set(CODEC_SOURCES
+    codecs/codec_factory.c
+)
+
+# Audio module sources
+set(AUDIO_SOURCES
+    audio/audio_interface.c
+)
+
+# Platform-specific sources
+if(LINX_TARGET_PLATFORM STREQUAL "macos" OR LINX_TARGET_PLATFORM STREQUAL "linux")
+    # PortAudio implementation
+    list(APPEND AUDIO_SOURCES audio/portaudio_mac.c)
+    # Opus codec implementation
+    list(APPEND CODEC_SOURCES codecs/opus_codec.c)
+elseif(LINX_TARGET_PLATFORM STREQUAL "esp32")
+    # ESP32 implementations (currently using stubs)
+    list(APPEND AUDIO_SOURCES audio/audio_stub.c)
+    list(APPEND CODEC_SOURCES codecs/codec_stub.c)
+else()
+    # Unknown platform - use stub implementations
+    list(APPEND AUDIO_SOURCES audio/audio_stub.c)
+    list(APPEND CODEC_SOURCES codecs/codec_stub.c)
+endif()
+
+# Combine all sources
+set(ALL_SOURCES
+    ${LINX_SDK_SOURCES}
+    ${LOG_SOURCES}
+    ${CJSON_SOURCES}
+    ${MCP_SOURCES}
+    ${PROTOCOLS_SOURCES}
+    ${CODEC_SOURCES}
+    ${AUDIO_SOURCES}
+)
+
+# =============================================================================
+# Collect all header files for installation
+# =============================================================================
+
+set(LINX_SDK_HEADERS
     linx_sdk.h
 )
 
-# Create main SDK library
-add_library(linx_sdk STATIC ${SDK_SOURCES})
+set(LOG_HEADERS
+    log/linx_log.h
+)
 
-# Include directories for SDK
-target_include_directories(linx_sdk PUBLIC 
+set(CJSON_HEADERS
+    cjson/cJSON.h
+    cjson/cJSON_Utils.h
+)
+
+set(MCP_HEADERS
+    mcp/mcp.h
+    mcp/mcp_property.h
+    mcp/mcp_server.h
+    mcp/mcp_tool.h
+    mcp/mcp_types.h
+    mcp/mcp_utils.h
+)
+
+set(PROTOCOLS_HEADERS
+    protocols/linx_protocol.h
+    protocols/linx_websocket.h
+)
+
+set(CODEC_HEADERS
+    codecs/audio_codec.h
+    codecs/codec_stub.h
+    codecs/opus_codec.h
+    codecs/es8388_codec.h
+)
+
+set(AUDIO_HEADERS
+    audio/audio_interface.h
+    audio/audio_stub.h
+    audio/portaudio_mac.h
+    audio/esp32_i2s.h
+)
+
+# =============================================================================
+# Create unified static library
+# =============================================================================
+
+add_library(linx_sdk_static STATIC ${ALL_SOURCES})
+
+# Set target properties
+set_target_properties(linx_sdk_static PROPERTIES
+    OUTPUT_NAME linx_sdk
+    VERSION 1.0.0
+    SOVERSION 1
+    ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
+)
+
+# Include directories
+target_include_directories(linx_sdk_static PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/audio
-    ${CMAKE_CURRENT_SOURCE_DIR}/cjson
-    ${CMAKE_CURRENT_SOURCE_DIR}/codecs
     ${CMAKE_CURRENT_SOURCE_DIR}/log
+    ${CMAKE_CURRENT_SOURCE_DIR}/cjson
     ${CMAKE_CURRENT_SOURCE_DIR}/mcp
     ${CMAKE_CURRENT_SOURCE_DIR}/protocols
+    ${CMAKE_CURRENT_SOURCE_DIR}/codecs
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio
+    ${MONGOOSE_INCLUDE_DIRS}
 )
 
-# Link component libraries based on platform capabilities
-set(LINX_COMPONENT_LIBRARIES
-    cjson_static
-    linx_log
-    linx_mcp
-    linx_protocols
+# Platform-specific include directories
+if(LINX_TARGET_PLATFORM STREQUAL "macos" OR LINX_TARGET_PLATFORM STREQUAL "linux")
+    if(OPUS_FOUND)
+        target_include_directories(linx_sdk_static PUBLIC ${OPUS_INCLUDE_DIRS})
+    endif()
+endif()
+
+# Compiler definitions
+target_compile_definitions(linx_sdk_static PRIVATE
+    CJSON_HIDE_SYMBOLS
+    LINX_SDK_VERSION="1.0.0"
 )
 
-# Add audio and codecs only if enabled for this platform
-if(LINX_ENABLE_AUDIO)
-    list(APPEND LINX_COMPONENT_LIBRARIES linx_audio linx_codecs)
-    message(STATUS "Audio support enabled")
+# Compiler flags
+target_compile_options(linx_sdk_static PRIVATE
+    -Wall
+    -Wextra
+    -Wno-unused-parameter
+    -fPIC
+)
+
+# Debug/Release specific flags
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_compile_options(linx_sdk_static PRIVATE -g -O0)
 else()
-    message(STATUS "Audio support disabled for this platform")
+    target_compile_options(linx_sdk_static PRIVATE -O2)
 endif()
 
-# Link all component libraries
-target_link_libraries(linx_sdk ${LINX_COMPONENT_LIBRARIES})
-
-# Link platform-specific system libraries
-if(LINX_SYSTEM_LIBRARIES)
-    target_link_libraries(linx_sdk ${LINX_SYSTEM_LIBRARIES})
-    message(STATUS "Linking system libraries: ${LINX_SYSTEM_LIBRARIES}")
-endif()
-
-# Link platform-specific audio libraries
-if(LINX_ENABLE_AUDIO)
-    if(LINX_PORTAUDIO_FOUND AND LINX_PORTAUDIO_LIBRARIES)
-        target_link_libraries(linx_sdk ${LINX_PORTAUDIO_LIBRARIES})
-        target_include_directories(linx_sdk PRIVATE ${LINX_PORTAUDIO_INCLUDE_DIRS})
-        message(STATUS "Linking PortAudio: ${LINX_PORTAUDIO_LIBRARIES}")
-    endif()
-    
-    if(LINX_OPUS_FOUND AND LINX_OPUS_LIBRARIES)
-        target_link_libraries(linx_sdk ${LINX_OPUS_LIBRARIES})
-        target_include_directories(linx_sdk PRIVATE ${LINX_OPUS_INCLUDE_DIRS})
-        message(STATUS "Linking Opus: ${LINX_OPUS_LIBRARIES}")
-    endif()
-    
-    # Link macOS frameworks if available
-    if(LINX_MACOS_FRAMEWORKS)
-        target_link_libraries(linx_sdk ${LINX_MACOS_FRAMEWORKS})
-        message(STATUS "Linking macOS frameworks: ${LINX_MACOS_FRAMEWORKS}")
-    endif()
-endif()
-
-# Install headers
-install(FILES ${SDK_HEADERS} DESTINATION include/linx)
-
-# Install library
-install(TARGETS linx_sdk DESTINATION lib)
-
-# Create a combined library that includes all enabled components
-set(COMBINED_OBJECTS
-    ${SDK_SOURCES}
-    $<TARGET_OBJECTS:cjson_static>
-    $<TARGET_OBJECTS:linx_log>
-    $<TARGET_OBJECTS:linx_mcp>
-    $<TARGET_OBJECTS:linx_protocols>
+# Link libraries
+target_link_libraries(linx_sdk_static PUBLIC
+    Mongoose::mongoose
+    ${CMAKE_THREAD_LIBS_INIT}
 )
 
-# Add audio and codec objects only if enabled
-if(LINX_ENABLE_AUDIO)
-    list(APPEND COMBINED_OBJECTS 
-        $<TARGET_OBJECTS:linx_audio>
-        $<TARGET_OBJECTS:linx_codecs>
-    )
-endif()
-
-add_library(linx_sdk_combined STATIC ${COMBINED_OBJECTS})
-
-# Set properties for combined library
-set_target_properties(linx_sdk_combined PROPERTIES OUTPUT_NAME linx_sdk_all)
-
-# Link the same libraries as the main SDK
-target_link_libraries(linx_sdk_combined ${LINX_COMPONENT_LIBRARIES})
-
-if(LINX_SYSTEM_LIBRARIES)
-    target_link_libraries(linx_sdk_combined ${LINX_SYSTEM_LIBRARIES})
-endif()
-
-if(LINX_ENABLE_AUDIO)
-    if(LINX_PORTAUDIO_FOUND AND LINX_PORTAUDIO_LIBRARIES)
-        target_link_libraries(linx_sdk_combined ${LINX_PORTAUDIO_LIBRARIES})
+# Platform-specific libraries
+if(LINX_TARGET_PLATFORM STREQUAL "macos" OR LINX_TARGET_PLATFORM STREQUAL "linux")
+    if(TARGET PortAudio::portaudio)
+        target_link_libraries(linx_sdk_static PUBLIC PortAudio::portaudio)
     endif()
-    
-    if(LINX_OPUS_FOUND AND LINX_OPUS_LIBRARIES)
-        target_link_libraries(linx_sdk_combined ${LINX_OPUS_LIBRARIES})
-    endif()
-    
-    if(LINX_MACOS_FRAMEWORKS)
-        target_link_libraries(linx_sdk_combined ${LINX_MACOS_FRAMEWORKS})
+    if(OPUS_FOUND)
+        target_link_libraries(linx_sdk_static PUBLIC ${OPUS_LIBRARIES})
     endif()
 endif()
 
-# Install combined library
-install(TARGETS linx_sdk_combined DESTINATION lib)
+# =============================================================================
+# Install configuration
+# =============================================================================
 
-# Create include and lib directories in build folder by modules
-file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/include)
-file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/include/audio)
-file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/include/cjson)
-file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/include/codecs)
-file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/include/log)
-file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/include/mcp)
-file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/include/protocols)
-file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-
-# Copy main SDK header to build directory
-add_custom_command(TARGET linx_sdk POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    ${CMAKE_CURRENT_SOURCE_DIR}/linx_sdk.h
-    ${CMAKE_BINARY_DIR}/include/linx_sdk.h
-    COMMENT "Copying main SDK header to build directory"
+# Install the static library
+install(TARGETS linx_sdk_static
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
 )
 
-# Copy all module headers (.h files only) to build directory
-add_custom_command(TARGET linx_sdk POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy
-    ${CMAKE_CURRENT_SOURCE_DIR}/audio/*.h
-    ${CMAKE_BINARY_DIR}/include/audio/
-    COMMAND ${CMAKE_COMMAND} -E copy
-    ${CMAKE_CURRENT_SOURCE_DIR}/cjson/*.h
-    ${CMAKE_BINARY_DIR}/include/cjson/
-    COMMAND ${CMAKE_COMMAND} -E copy
-    ${CMAKE_CURRENT_SOURCE_DIR}/codecs/*.h
-    ${CMAKE_BINARY_DIR}/include/codecs/
-    COMMAND ${CMAKE_COMMAND} -E copy
-    ${CMAKE_CURRENT_SOURCE_DIR}/log/*.h
-    ${CMAKE_BINARY_DIR}/include/log/
-    COMMAND ${CMAKE_COMMAND} -E copy
-    ${CMAKE_CURRENT_SOURCE_DIR}/mcp/*.h
-    ${CMAKE_BINARY_DIR}/include/mcp/
-    COMMAND ${CMAKE_COMMAND} -E copy
-    ${CMAKE_CURRENT_SOURCE_DIR}/protocols/*.h
-    ${CMAKE_BINARY_DIR}/include/protocols/
-    COMMENT "Copying all module header files (.h) to build directory"
+# Install headers with directory structure
+install(FILES ${LINX_SDK_HEADERS} DESTINATION include/linx)
+install(FILES ${LOG_HEADERS} DESTINATION include/linx/log)
+install(FILES ${CJSON_HEADERS} DESTINATION include/linx/cjson)
+install(FILES ${MCP_HEADERS} DESTINATION include/linx/mcp)
+install(FILES ${PROTOCOLS_HEADERS} DESTINATION include/linx/protocols)
+install(FILES ${CODEC_HEADERS} DESTINATION include/linx/codecs)
+install(FILES ${AUDIO_HEADERS} DESTINATION include/linx/audio)
+
+# Create pkg-config file
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/templates/linx_sdk.pc.in
+    ${CMAKE_BINARY_DIR}/linx_sdk.pc
+    @ONLY
 )
 
-# Copy libraries to build directory after build
-add_custom_command(TARGET linx_sdk_combined POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    $<TARGET_FILE:linx_sdk>
-    ${CMAKE_BINARY_DIR}/lib/liblinx_sdk.a
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    $<TARGET_FILE:linx_sdk_combined>
-    ${CMAKE_BINARY_DIR}/lib/liblinx_sdk_all.a
-    COMMENT "Copying libraries to build directory"
-)
+install(FILES ${CMAKE_BINARY_DIR}/linx_sdk.pc DESTINATION lib/pkgconfig)
 
-# Print build summary
-message(STATUS "=== Linx SDK Build Summary ===")
-message(STATUS "Platform: ${LINX_PLATFORM_NAME} (${LINX_PLATFORM_TYPE})")
+# =============================================================================
+# Print configuration summary
+# =============================================================================
+
+message(STATUS "=== Linx SDK Configuration Summary ===")
+message(STATUS "Platform: ${LINX_PLATFORM_NAME}")
+message(STATUS "Platform Type: ${LINX_PLATFORM_TYPE}")
 message(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
-message(STATUS "Audio Support: ${LINX_ENABLE_AUDIO}")
-message(STATUS "WebSocket Support: ${LINX_ENABLE_WEBSOCKET}")
-message(STATUS "MCP Support: ${LINX_ENABLE_MCP}")
-message(STATUS "Include Directory: ${CMAKE_INSTALL_PREFIX}/include/linx")
-message(STATUS "Library Directory: ${CMAKE_INSTALL_PREFIX}/lib")
-message(STATUS "Output Libraries: liblinx_sdk.a, liblinx_sdk_all.a")
-if(LINX_MISSING_DEPENDENCIES)
-    message(WARNING "Some dependencies are missing. Build may fail.")
+message(STATUS "C Standard: ${CMAKE_C_STANDARD}")
+message(STATUS "Install Prefix: ${CMAKE_INSTALL_PREFIX}")
+message(STATUS "Library Output: ${CMAKE_BINARY_DIR}/lib/liblinx_sdk.a")
+
+if(LINX_TARGET_PLATFORM STREQUAL "macos" OR LINX_TARGET_PLATFORM STREQUAL "linux")
+    message(STATUS "Audio Backend: PortAudio")
+    message(STATUS "Codec Backend: Opus")
+    if(OPUS_FOUND)
+        message(STATUS "Opus Libraries: ${OPUS_LIBRARIES}")
+    endif()
+else()
+    message(STATUS "Audio Backend: Stub (${LINX_TARGET_PLATFORM})")
+    message(STATUS "Codec Backend: Stub (${LINX_TARGET_PLATFORM})")
 endif()
-message(STATUS "===============================")
+
+message(STATUS "======================================")
