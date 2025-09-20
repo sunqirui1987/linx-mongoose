@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include <cJSON.h>
+#include "../cjson/cJSON.h"
 #include "../log/linx_log.h"
 
 #ifdef __cplusplus
@@ -74,8 +74,6 @@ typedef struct {
 /* 协议接口结构（虚函数表） */
 typedef struct {
     bool (*start)(linx_protocol_t* protocol);
-    bool (*open_audio_channel)(linx_protocol_t* protocol);
-    void (*close_audio_channel)(linx_protocol_t* protocol);
     bool (*send_audio)(linx_protocol_t* protocol, linx_audio_stream_packet_t* packet);
     bool (*send_text)(linx_protocol_t* protocol, const char* text);
     void (*destroy)(linx_protocol_t* protocol);

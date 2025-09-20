@@ -45,6 +45,8 @@
         "algorithm": "cpp",
         "test_framework.h": "c",
         "mcp_types.h": "c",
-        "linx_protocol.h": "c"
+        "linx_protocol.h": "c",
+        "time.h": "c",
+        "mcp_server.h": "c"
     }
 }

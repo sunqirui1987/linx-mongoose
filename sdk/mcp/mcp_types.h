@@ -9,7 +9,7 @@
 #include <stdbool.h>    // 布尔类型支持
 #include <stdint.h>     // 标准整数类型
 #include <stddef.h>     // 标准定义
-#include <cJSON.h>      // JSON处理库
+#include "../cjson/cJSON.h"      // JSON处理库
 
 #ifdef __cplusplus
 extern "C" {
