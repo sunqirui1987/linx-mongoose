@@ -2,7 +2,7 @@
 #define OPUS_CODEC_H
 
 #include "audio_codec.h"
-#include "opus/include/opus.h"
+#include <opus.h>
 
 #ifdef __cplusplus
 extern "C" {

@@ -7,3 +7,5 @@ received_audio.opus
 bak
 sdk/audio/test/build
 sdk/codecs/build
+sdk/lib
+demo/bin
