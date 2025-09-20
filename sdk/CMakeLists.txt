@@ -57,3 +57,53 @@ target_link_libraries(linx_sdk_static PUBLIC
     linx_codecs
     linx_audio
 )
+
+# =============================================================================
+# Installation configuration
+# =============================================================================
+
+# Set installation directory to build/install
+set(CMAKE_INSTALL_PREFIX ${CMAKE_BINARY_DIR}/install CACHE PATH "Installation directory" FORCE)
+
+# Install the static library
+install(TARGETS linx_sdk_static
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
+)
+
+# Install the main header file
+install(FILES linx_sdk.h
+    DESTINATION include
+)
+
+# Install subdirectory headers
+install(DIRECTORY log/ 
+    DESTINATION include/log
+    FILES_MATCHING PATTERN "*.h"
+)
+
+install(DIRECTORY cjson/
+    DESTINATION include/cjson  
+    FILES_MATCHING PATTERN "*.h"
+)
+
+install(DIRECTORY mcp/
+    DESTINATION include/mcp
+    FILES_MATCHING PATTERN "*.h"
+)
+
+install(DIRECTORY protocols/
+    DESTINATION include/protocols
+    FILES_MATCHING PATTERN "*.h"
+)
+
+install(DIRECTORY codecs/
+    DESTINATION include/codecs
+    FILES_MATCHING PATTERN "*.h"
+)
+
+install(DIRECTORY audio/
+    DESTINATION include/audio
+    FILES_MATCHING PATTERN "*.h"
+)
