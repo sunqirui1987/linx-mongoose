@@ -19,8 +19,7 @@ find_package(Threads REQUIRED)
 # Platform-specific audio dependencies
 if(LINX_TARGET_PLATFORM STREQUAL "macos" OR LINX_TARGET_PLATFORM STREQUAL "linux")
     find_package(PortAudio REQUIRED)
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(OPUS REQUIRED opus)
+    find_package(Opus REQUIRED)
 endif()
 
 # =============================================================================
@@ -83,6 +82,11 @@ else()
     list(APPEND CODEC_SOURCES codecs/codec_stub.c)
 endif()
 
+# Add mongoose sources if found
+if(Mongoose_FOUND)
+    set(MONGOOSE_SOURCES ${Mongoose_SOURCES})
+endif()
+
 # Combine all sources
 set(ALL_SOURCES
     ${LINX_SDK_SOURCES}
@@ -92,6 +96,7 @@ set(ALL_SOURCES
     ${PROTOCOLS_SOURCES}
     ${CODEC_SOURCES}
     ${AUDIO_SOURCES}
+    ${MONGOOSE_SOURCES}
 )
 
 # =============================================================================
@@ -162,8 +167,12 @@ target_include_directories(linx_sdk_static PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/protocols
     ${CMAKE_CURRENT_SOURCE_DIR}/codecs
     ${CMAKE_CURRENT_SOURCE_DIR}/audio
-    ${MONGOOSE_INCLUDE_DIRS}
 )
+
+# Add mongoose include directories if found
+if(Mongoose_FOUND)
+    target_include_directories(linx_sdk_static PUBLIC ${Mongoose_INCLUDE_DIRS})
+endif()
 
 # Platform-specific include directories
 if(LINX_TARGET_PLATFORM STREQUAL "macos" OR LINX_TARGET_PLATFORM STREQUAL "linux")
@@ -195,9 +204,13 @@ endif()
 
 # Link libraries
 target_link_libraries(linx_sdk_static PUBLIC
-    Mongoose::mongoose
     ${CMAKE_THREAD_LIBS_INIT}
 )
+
+# Link mongoose if found (it's a single-file library, so no actual linking needed)
+if(Mongoose_FOUND AND TARGET Mongoose::Mongoose)
+    target_link_libraries(linx_sdk_static PUBLIC Mongoose::Mongoose)
+endif()
 
 # Platform-specific libraries
 if(LINX_TARGET_PLATFORM STREQUAL "macos" OR LINX_TARGET_PLATFORM STREQUAL "linux")
